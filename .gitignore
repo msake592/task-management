@@ -1,70 +1,33 @@
-# Compiled class files
-*.class
-
-# Log files
-*.log
-logs/
-
-# Maven build output
+HELP.md
 target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
-# Package files
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# Maven wrapper
-# Not ignored intentionally:
-# mvnw
-# mvnw.cmd
-# .mvn/wrapper/maven-wrapper.jar
-# These files should be committed so others can run the project without Maven installed.
-
-# IntelliJ IDEA
-.idea/
-*.iml
-*.iws
-*.ipr
-out/
-
-# VS Code
-.vscode/
-
-# Eclipse
-.project
+### STS ###
+.apt_generated
 .classpath
-.settings/
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
 
-# NetBeans
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-# macOS
-.DS_Store
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Application local config
-application-local.yml
-application-local.properties
-
-# Java crash logs
-hs_err_pid*
-replay_pid*
-
-# Temporary files
-*.tmp
-*.temp
-
-# Docker
-*.pid
+### VS Code ###
+.vscode/
