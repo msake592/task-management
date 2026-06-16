@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: gorev_yonetim_postgres
+    environment:
+      POSTGRES_DB: gorev_yonetim_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - gorev_yonetim_data:/var/lib/postgresql/data
+
+volumes:
+  gorev_yonetim_data:
