@@ -3,6 +3,7 @@ package com.mahmutsalih.task_management.service.impl;
 import com.mahmutsalih.task_management.dto.request.ProjectRequest;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
+import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.service.ProjectService;
@@ -70,7 +71,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     private void validateDates(LocalDate startDate, LocalDate endDate) {
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new IllegalArgumentException("End date cannot be before start date");
+            throw new BadRequestException("End date cannot be before start date");
         }
     }
 
