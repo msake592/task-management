@@ -8,8 +8,9 @@ import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.service.ProjectService;
 import java.time.LocalDate;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -33,11 +34,9 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public List<ProjectResponse> getAll() {
-        return projectRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<ProjectResponse> getAll(Pageable pageable) {
+        return projectRepository.findAll(pageable)
+                .map(this::toResponse);
     }
 
     @Override

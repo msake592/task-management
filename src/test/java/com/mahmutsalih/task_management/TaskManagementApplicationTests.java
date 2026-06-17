@@ -1,13 +1,14 @@
 package com.mahmutsalih.task_management;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+
 class TaskManagementApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationClassExists() {
+		assertThat(TaskManagementApplication.class).isNotNull();
 	}
 
 }

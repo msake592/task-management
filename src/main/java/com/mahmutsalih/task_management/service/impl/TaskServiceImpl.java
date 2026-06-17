@@ -13,8 +13,13 @@ import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.service.TaskService;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,11 +51,15 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<TaskResponse> getAll() {
-        return taskRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<TaskResponse> getAll(
+            TaskStatus status,
+            TaskPriority priority,
+            Long projectId,
+            Long assignedUserId,
+            Pageable pageable
+    ) {
+        return taskRepository.findAll(buildSpecification(status, priority, projectId, assignedUserId), pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -108,6 +117,35 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return findUser(id);
+    }
+
+    private Specification<Task> buildSpecification(
+            TaskStatus status,
+            TaskPriority priority,
+            Long projectId,
+            Long assignedUserId
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+
+            if (priority != null) {
+                predicates.add(criteriaBuilder.equal(root.get("priority"), priority));
+            }
+
+            if (projectId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("project").get("id"), projectId));
+            }
+
+            if (assignedUserId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("assignedUser").get("id"), assignedUserId));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private TaskResponse toResponse(Task task) {

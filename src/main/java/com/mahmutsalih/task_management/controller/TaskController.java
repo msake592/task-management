@@ -3,12 +3,14 @@ package com.mahmutsalih.task_management.controller;
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
 import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
+import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.service.TaskService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -42,8 +44,14 @@ public class TaskController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TaskResponse>> getAll() {
-        return ResponseEntity.ok(taskService.getAll());
+    public ResponseEntity<Page<TaskResponse>> getAll(
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) TaskPriority priority,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) Long assignedUserId,
+            Pageable pageable
+    ) {
+        return ResponseEntity.ok(taskService.getAll(status, priority, projectId, assignedUserId, pageable));
     }
 
     @PutMapping("/{id}")

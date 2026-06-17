@@ -8,8 +8,10 @@ import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.RoleRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.service.UserService;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +20,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserResponse create(UserRequest request) {
@@ -25,7 +28,7 @@ public class UserServiceImpl implements UserService {
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .email(request.getEmail())
-                .password(request.getPassword())
+                .password(passwordEncoder.encode(request.getPassword()))
                 .role(findRole(request.getRoleId()))
                 .build();
 
@@ -33,11 +36,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserResponse> getAll() {
-        return userRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<UserResponse> getAll(Pageable pageable) {
+        return userRepository.findAll(pageable)
+                .map(this::toResponse);
     }
 
     @Override
@@ -51,7 +52,7 @@ public class UserServiceImpl implements UserService {
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setEmail(request.getEmail());
-        user.setPassword(request.getPassword());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(findRole(request.getRoleId()));
 
         return toResponse(userRepository.save(user));

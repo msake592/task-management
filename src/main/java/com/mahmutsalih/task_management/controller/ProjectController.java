@@ -4,8 +4,9 @@ import com.mahmutsalih.task_management.dto.request.ProjectRequest;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.service.ProjectService;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,8 +31,8 @@ public class ProjectController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProjectResponse>> getAll() {
-        return ResponseEntity.ok(projectService.getAll());
+    public ResponseEntity<Page<ProjectResponse>> getAll(Pageable pageable) {
+        return ResponseEntity.ok(projectService.getAll(pageable));
     }
 
     @GetMapping("/{id}")
