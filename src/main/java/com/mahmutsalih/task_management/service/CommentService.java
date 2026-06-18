@@ -1,8 +1,9 @@
 package com.mahmutsalih.task_management.service;
 
+import java.util.List;
+
 import com.mahmutsalih.task_management.dto.request.CommentRequest;
 import com.mahmutsalih.task_management.dto.response.CommentResponse;
-import java.util.List;
 
 public interface CommentService {
 
