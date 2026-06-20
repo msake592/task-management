@@ -1,6 +1,6 @@
 # Task Management System
 
-Task Management System is a Spring Boot REST API for managing users, roles, projects, tasks, and task comments. It provides layered backend modules for creating projects, assigning tasks to users, tracking task status and priority, adding comments, and querying tasks with pagination, sorting, and basic filters.
+Task Management System is a Spring Boot REST API for managing users, roles, projects, tasks, and task comments. It includes CRUD modules, authentication, ownership checks, PostgreSQL persistence, and Swagger/OpenAPI documentation.
 
 ## Technologies
 
@@ -9,71 +9,123 @@ Task Management System is a Spring Boot REST API for managing users, roles, proj
 - Spring Web
 - Spring Data JPA
 - Spring Security
-- BCrypt password hashing
 - PostgreSQL
-- Maven
+- Maven Wrapper
 - Lombok
 - Bean Validation
 - JUnit 5
 - Mockito
-- Docker Compose
+- Docker / Docker Compose
 - Swagger / OpenAPI with springdoc-openapi
 
-## Start PostgreSQL With Docker
+## Configuration
 
-The project includes a `docker-compose.yml` file for PostgreSQL.
+The application reads database and JWT settings from environment variables.
 
-```bash
-docker compose up -d
-```
+| Variable | Default |
+| --- | --- |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5433/task_management_db` |
+| `SPRING_DATASOURCE_USERNAME` | `postgres` |
+| `SPRING_DATASOURCE_PASSWORD` | `postgres` |
+| `JWT_SECRET` | no default, must be provided |
+| `JWT_EXPIRATION` | `86400000` |
 
-Default database settings:
-
-- Database: `task_management_db`
-- Username: `postgres`
-- Password: `postgres`
-- Host port: `5433`
-
-To stop PostgreSQL:
+Generate a local JWT secret with:
 
 ```bash
-docker compose down
+openssl rand -base64 32
 ```
 
-## Run the Application
+Do not commit real secrets. Use `.env.example` as a template only.
 
-Start PostgreSQL first, then run the application:
+## Full Docker Setup
+
+This starts PostgreSQL and the Spring Boot application with one command.
 
 ```bash
-./mvnw spring-boot:run
+export JWT_SECRET="<generated-secret>"
+export JWT_EXPIRATION=86400000
+docker compose up --build
 ```
 
-The application runs on:
+The API runs at:
 
 ```text
 http://localhost:8080
 ```
 
-Swagger UI is available at:
+Swagger UI:
 
 ```text
 http://localhost:8080/swagger-ui/index.html
 ```
 
-OpenAPI JSON is available at:
+OpenAPI JSON:
 
 ```text
 http://localhost:8080/v3/api-docs
 ```
 
-## Security
+Stop the containers:
 
-The current security setup uses Spring Security with BCrypt password hashing and HTTP Basic authentication.
+```bash
+docker compose down
+```
 
-- Public endpoints: `/api/auth/**`
-- Public documentation: `/swagger-ui/**`, `/v3/api-docs/**`
-- Other API endpoints require authentication
-- JWT is not implemented yet
+Stop the containers and delete the PostgreSQL volume:
+
+```bash
+docker compose down -v
+```
+
+`docker compose down` does not delete database data. `docker compose down -v` deletes the named volume and removes the database data.
+
+## Local App With Docker PostgreSQL
+
+Use this mode when you want PostgreSQL in Docker and the Spring Boot app running locally.
+
+```bash
+docker compose up -d postgres
+export JWT_SECRET="<generated-secret>"
+export JWT_EXPIRATION=86400000
+./mvnw spring-boot:run
+```
+
+In this mode the application uses the default local database URL:
+
+```text
+jdbc:postgresql://localhost:5433/task_management_db
+```
+
+## Docker Services
+
+`docker-compose.yml` defines:
+
+- `postgres`: PostgreSQL 16, mapped from host port `5433` to container port `5432`
+- `app`: Spring Boot app built from the local `Dockerfile`, mapped to host port `8080`
+- `postgres_data`: named volume for persistent PostgreSQL data
+
+Inside Docker, the app connects to PostgreSQL with:
+
+```text
+jdbc:postgresql://postgres:5432/task_management_db
+```
+
+## Run Tests
+
+Run this before building an image or pushing changes:
+
+```bash
+./mvnw clean test
+```
+
+## Health Check
+
+After startup, verify these endpoints:
+
+- `POST http://localhost:8080/api/auth/register`
+- `POST http://localhost:8080/api/auth/login`
+- `GET http://localhost:8080/swagger-ui/index.html`
 
 ## Main Endpoints
 
@@ -108,39 +160,5 @@ The current security setup uses Spring Security with BCrypt password hashing and
 
 - `POST /api/tasks/{taskId}/comments` - Add comment to task
 - `GET /api/tasks/{taskId}/comments` - List comments by task id
+- `PUT /api/tasks/{taskId}/comments/{commentId}` - Update comment
 - `DELETE /api/tasks/{taskId}/comments/{commentId}` - Delete comment
-
-## Branch Structure
-
-- `main` - Stable branch for production-ready code
-- `develop` - Integration branch for active development
-- `feature/*` - Feature branches for individual tasks or modules
-- `bugfix/*` - Fix branches for defects
-
-Example workflow:
-
-```bash
-git checkout develop
-git pull origin develop
-git checkout -b feature/task-module
-```
-
-## Run Tests
-
-Run all tests:
-
-```bash
-./mvnw test
-```
-
-Run tests without starting external services:
-
-```bash
-./mvnw -Dtest='*ServiceImplTest' test
-```
-
-Compile without running tests:
-
-```bash
-./mvnw -DskipTests compile
-```

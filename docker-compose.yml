@@ -1,7 +1,24 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: task-management-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/task_management_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    ports:
+      - "8080:8080"
+
   postgres:
     image: postgres:16
-    container_name: task_management_postgres
+    container_name: task-management-postgres
     environment:
       POSTGRES_DB: task_management_db
       POSTGRES_USER: postgres
@@ -9,7 +26,12 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - task_management_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d task_management_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  task_management_data:
+  postgres_data:
