@@ -12,6 +12,7 @@ import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.TaskService;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -29,16 +30,20 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     @Override
     public TaskResponse create(TaskRequest request) {
+        Project project = findProject(request.getProjectId());
+        currentUserService.validateProjectAccess(project);
+
         Task task = Task.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .status(request.getStatus() != null ? request.getStatus() : TaskStatus.TODO)
                 .priority(request.getPriority() != null ? request.getPriority() : TaskPriority.MEDIUM)
                 .dueDate(request.getDueDate())
-                .project(findProject(request.getProjectId()))
+                .project(project)
                 .assignedUser(findUserOrNull(request.getAssignedUserId()))
                 .build();
 
@@ -47,7 +52,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskResponse getById(Long id) {
-        return toResponse(findTask(id));
+        Task task = findTask(id);
+        validateTaskAccess(task);
+        return toResponse(task);
     }
 
     @Override
@@ -65,12 +72,17 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskResponse update(Long id, TaskUpdateRequest request) {
         Task task = findTask(id);
+        validateTaskAccess(task);
+
+        Project project = findProject(request.getProjectId());
+        currentUserService.validateProjectAccess(project);
+
         task.setTitle(request.getTitle());
         task.setDescription(request.getDescription());
         task.setStatus(request.getStatus());
         task.setPriority(request.getPriority());
         task.setDueDate(request.getDueDate());
-        task.setProject(findProject(request.getProjectId()));
+        task.setProject(project);
         task.setAssignedUser(findUserOrNull(request.getAssignedUserId()));
 
         return toResponse(taskRepository.save(task));
@@ -79,12 +91,14 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public void delete(Long id) {
         Task task = findTask(id);
+        validateTaskAccess(task);
         taskRepository.delete(task);
     }
 
     @Override
     public TaskResponse updateStatus(Long id, TaskStatus status) {
         Task task = findTask(id);
+        validateTaskAccess(task);
         task.setStatus(status);
         return toResponse(taskRepository.save(task));
     }
@@ -92,6 +106,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskResponse assignToUser(Long id, Long userId) {
         Task task = findTask(id);
+        validateTaskAccess(task);
         task.setAssignedUser(findUser(userId));
         return toResponse(taskRepository.save(task));
     }
@@ -119,6 +134,10 @@ public class TaskServiceImpl implements TaskService {
         return findUser(id);
     }
 
+    private void validateTaskAccess(Task task) {
+        currentUserService.validateProjectAccess(task.getProject());
+    }
+
     private Specification<Task> buildSpecification(
             TaskStatus status,
             TaskPriority priority,
@@ -142,6 +161,13 @@ public class TaskServiceImpl implements TaskService {
 
             if (assignedUserId != null) {
                 predicates.add(criteriaBuilder.equal(root.get("assignedUser").get("id"), assignedUserId));
+            }
+
+            if (!currentUserService.isAdmin()) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("project").get("owner").get("id"),
+                        currentUserService.getCurrentUser().getId()
+                ));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

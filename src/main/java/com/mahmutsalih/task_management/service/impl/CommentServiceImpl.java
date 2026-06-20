@@ -8,10 +8,11 @@ import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.CommentRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.CommentService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,12 +21,13 @@ public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
     private final TaskRepository taskRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     @Override
     public CommentResponse addCommentToTask(Long taskId, CommentRequest request) {
         Task task = findTask(taskId);
-        User user = findUser(request.getUserId());
+        currentUserService.validateProjectAccess(task.getProject());
+        User user = currentUserService.getCurrentUser();
 
         Comment comment = Comment.builder()
                 .content(request.getContent())
@@ -38,7 +40,8 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public List<CommentResponse> getCommentsByTaskId(Long taskId) {
-        findTask(taskId);
+        Task task = findTask(taskId);
+        currentUserService.validateProjectAccess(task.getProject());
 
         return commentRepository.findByTaskId(taskId)
                 .stream()
@@ -47,8 +50,17 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
+    public CommentResponse update(Long id, CommentRequest request) {
+        Comment comment = findComment(id);
+        validateCommentManageAccess(comment);
+        comment.setContent(request.getContent());
+        return toResponse(commentRepository.save(comment));
+    }
+
+    @Override
     public void delete(Long id) {
         Comment comment = findComment(id);
+        validateCommentManageAccess(comment);
         commentRepository.delete(comment);
     }
 
@@ -62,9 +74,18 @@ public class CommentServiceImpl implements CommentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
     }
 
-    private User findUser(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+    private void validateCommentManageAccess(Comment comment) {
+        if (currentUserService.isAdmin() || currentUserService.canAccessProject(comment.getTask().getProject())) {
+            return;
+        }
+
+        User currentUser = currentUserService.getCurrentUser();
+        User commentUser = comment.getUser();
+        if (commentUser != null && commentUser.getId() != null && commentUser.getId().equals(currentUser.getId())) {
+            return;
+        }
+
+        throw new AccessDeniedException("You do not have permission to access this resource");
     }
 
     private CommentResponse toResponse(Comment comment) {

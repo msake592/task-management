@@ -3,13 +3,16 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mahmutsalih.task_management.dto.request.ProjectRequest;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
+import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
+import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -25,11 +28,15 @@ class ProjectServiceImplTest {
     @Mock
     private ProjectRepository projectRepository;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
     @InjectMocks
     private ProjectServiceImpl projectService;
 
     @Test
     void create_shouldCreateProject() {
+        User user = User.builder().id(2L).email("faruk@test.com").build();
         ProjectRequest request = ProjectRequest.builder()
                 .name("Task Management")
                 .description("Project description")
@@ -37,6 +44,7 @@ class ProjectServiceImplTest {
                 .endDate(LocalDate.of(2026, 2, 1))
                 .build();
 
+        when(currentUserService.getCurrentUser()).thenReturn(user);
         when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
             Project project = invocation.getArgument(0);
             project.setId(1L);
@@ -66,6 +74,7 @@ class ProjectServiceImplTest {
 
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getName()).isEqualTo("Task Management");
+        verify(currentUserService).validateProjectAccess(project);
     }
 
     @Test

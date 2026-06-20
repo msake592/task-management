@@ -11,5 +11,7 @@ public interface CommentService {
 
     List<CommentResponse> getCommentsByTaskId(Long taskId);
 
+    CommentResponse update(Long id, CommentRequest request);
+
     void delete(Long id);
 }

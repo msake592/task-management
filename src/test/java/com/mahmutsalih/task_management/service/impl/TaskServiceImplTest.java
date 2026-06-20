@@ -3,6 +3,7 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
@@ -16,6 +17,7 @@ import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -36,6 +38,9 @@ class TaskServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private CurrentUserService currentUserService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
@@ -71,6 +76,7 @@ class TaskServiceImplTest {
         assertThat(response.getPriority()).isEqualTo(TaskPriority.HIGH);
         assertThat(response.getProjectId()).isEqualTo(1L);
         assertThat(response.getAssignedUserId()).isEqualTo(2L);
+        verify(currentUserService).validateProjectAccess(project);
     }
 
     @Test
@@ -95,6 +101,7 @@ class TaskServiceImplTest {
         assertThat(response.getId()).isEqualTo(3L);
         assertThat(response.getProjectName()).isEqualTo("Project");
         assertThat(response.getAssignedUserFullName()).isEqualTo("Mahmut Kelkit");
+        verify(currentUserService).validateProjectAccess(project);
     }
 
     @Test
