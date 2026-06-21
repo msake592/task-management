@@ -1,8 +1,10 @@
 import { Route, Routes } from 'react-router-dom';
 import HomePage from '../pages/HomePage.jsx';
 import CreateTaskPage from '../pages/CreateTaskPage.jsx';
+import CreateProjectPage from '../pages/CreateProjectPage.jsx';
 import EditTaskPage from '../pages/EditTaskPage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
+import ProjectListPage from '../pages/ProjectListPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
 import TaskDetailPage from '../pages/TaskDetailPage.jsx';
 import TaskListPage from '../pages/TaskListPage.jsx';
@@ -13,6 +15,8 @@ function AppRoutes() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/projects" element={<ProjectListPage />} />
+      <Route path="/projects/new" element={<CreateProjectPage />} />
       <Route path="/tasks" element={<TaskListPage />} />
       <Route path="/tasks/new" element={<CreateTaskPage />} />
       <Route path="/tasks/:id/edit" element={<EditTaskPage />} />

@@ -196,7 +196,11 @@ function EditTaskPage() {
           </label>
         </div>
 
-        {projects.length === 0 && <p className="empty-message">No projects available. Please create a project first.</p>}
+        {projects.length === 0 && (
+          <p className="empty-message">
+            No projects available. <Link to="/projects/new">Create a project first.</Link>
+          </p>
+        )}
         {error && <p className="error-message">{error}</p>}
 
         <div className="form-actions">

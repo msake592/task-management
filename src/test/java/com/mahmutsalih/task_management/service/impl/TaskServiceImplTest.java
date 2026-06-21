@@ -3,6 +3,8 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.security.access.AccessDeniedException;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,6 +80,25 @@ class TaskServiceImplTest {
         assertThat(response.getProjectId()).isEqualTo(1L);
         assertThat(response.getAssignedUserId()).isEqualTo(2L);
         verify(currentUserService).validateProjectAccess(project);
+    }
+
+    @Test
+    void create_whenProjectIsNotAccessible_shouldThrowAccessDeniedException() {
+        Project project = Project.builder().id(1L).name("Other Project").build();
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .projectId(1L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        doThrow(new AccessDeniedException("You do not have permission to access this resource"))
+                .when(currentUserService).validateProjectAccess(project);
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You do not have permission to access this resource");
+
+        verify(taskRepository, never()).save(any(Task.class));
     }
 
     @Test

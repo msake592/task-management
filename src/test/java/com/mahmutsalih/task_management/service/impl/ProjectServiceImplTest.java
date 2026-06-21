@@ -15,9 +15,13 @@ import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -57,6 +61,37 @@ class ProjectServiceImplTest {
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getName()).isEqualTo("Task Management");
         assertThat(response.getDescription()).isEqualTo("Project description");
+        verify(projectRepository).save(org.mockito.ArgumentMatchers.argThat(project -> project.getOwner().equals(user)));
+    }
+
+    @Test
+    void getAll_whenCurrentUserIsAdmin_shouldReturnAllProjects() {
+        Pageable pageable = Pageable.unpaged();
+        Project project = Project.builder().id(1L).name("Admin Project").build();
+
+        when(currentUserService.isAdmin()).thenReturn(true);
+        when(projectRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(project)));
+
+        Page<ProjectResponse> response = projectService.getAll(pageable);
+
+        assertThat(response.getContent()).extracting(ProjectResponse::getName).containsExactly("Admin Project");
+        verify(projectRepository).findAll(pageable);
+    }
+
+    @Test
+    void getAll_whenCurrentUserIsNotAdmin_shouldReturnOwnedProjects() {
+        Pageable pageable = Pageable.unpaged();
+        User owner = User.builder().id(2L).email("user@test.com").build();
+        Project project = Project.builder().id(1L).name("Owned Project").owner(owner).build();
+
+        when(currentUserService.isAdmin()).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(owner);
+        when(projectRepository.findByOwner(owner, pageable)).thenReturn(new PageImpl<>(List.of(project)));
+
+        Page<ProjectResponse> response = projectService.getAll(pageable);
+
+        assertThat(response.getContent()).extracting(ProjectResponse::getName).containsExactly("Owned Project");
+        verify(projectRepository).findByOwner(owner, pageable);
     }
 
     @Test

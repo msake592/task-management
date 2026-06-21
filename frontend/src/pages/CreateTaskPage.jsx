@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getProjects } from '../api/projectApi';
 import { createTask } from '../api/taskApi';
 import { getApiErrorMessage } from '../utils/apiError';
@@ -172,7 +172,9 @@ function CreateTaskPage() {
         </div>
 
         {!projectsLoading && projects.length === 0 && !projectsError && (
-          <p className="empty-message">No projects available. Please create a project first.</p>
+          <p className="empty-message">
+            No projects available. <Link to="/projects/new">Create a project first.</Link>
+          </p>
         )}
         {projectsError && <p className="error-message">{projectsError}</p>}
         {error && <p className="error-message">{error}</p>}

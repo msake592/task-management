@@ -37,6 +37,9 @@ function Navbar() {
         <NavLink to="/tasks" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
           Tasks
         </NavLink>
+        <NavLink to="/projects" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+          Projects
+        </NavLink>
         <NavLink to="/tasks/new" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
           Create Task
         </NavLink>

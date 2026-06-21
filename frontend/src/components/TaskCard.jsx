@@ -7,6 +7,7 @@ function TaskCard({ task }) {
   const status = task?.status || 'No status';
   const priority = task?.priority || 'No priority';
   const dueDate = task?.dueDate || 'No due date';
+  const projectName = task?.projectName || task?.project?.name || 'No project';
 
   return (
     <article className="task-card">
@@ -16,6 +17,7 @@ function TaskCard({ task }) {
       </div>
       <p>{description}</p>
       <div className="task-meta">
+        <span>Project: {projectName}</span>
         <span>Priority: {priority}</span>
         <span>Due: {dueDate}</span>
       </div>
