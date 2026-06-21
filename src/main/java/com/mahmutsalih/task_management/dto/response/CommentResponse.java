@@ -14,9 +14,8 @@ public class CommentResponse {
 
     private Long id;
     private String content;
-    private LocalDateTime createdAt;
     private Long taskId;
-    private String taskTitle;
     private Long userId;
-    private String userFullName;
+    private String username;
+    private LocalDateTime createdAt;
 }

@@ -3,10 +3,12 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.mahmutsalih.task_management.dto.request.CommentRequest;
+import com.mahmutsalih.task_management.dto.request.CreateCommentRequest;
 import com.mahmutsalih.task_management.dto.response.CommentResponse;
 import com.mahmutsalih.task_management.entity.Comment;
 import com.mahmutsalih.task_management.entity.Project;
@@ -17,7 +19,7 @@ import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.CommentRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
-import com.mahmutsalih.task_management.security.CurrentUserService;
+import com.mahmutsalih.task_management.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -37,21 +39,21 @@ class CommentServiceImplTest {
     private TaskRepository taskRepository;
 
     @Mock
-    private CurrentUserService currentUserService;
+    private UserRepository userRepository;
 
     @InjectMocks
     private CommentServiceImpl commentService;
 
     @Test
-    void addCommentToTask_shouldCreateComment() {
+    void addComment_shouldCreateComment() {
         Task task = task();
         User user = user();
-        CommentRequest request = CommentRequest.builder()
+        CreateCommentRequest request = CreateCommentRequest.builder()
                 .content("Looks good")
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
-        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> {
             Comment comment = invocation.getArgument(0);
             comment.setId(4L);
@@ -59,17 +61,51 @@ class CommentServiceImplTest {
             return comment;
         });
 
-        CommentResponse response = commentService.addCommentToTask(3L, request);
+        CommentResponse response = commentService.addComment(3L, 2L, request);
 
         assertThat(response.getId()).isEqualTo(4L);
         assertThat(response.getContent()).isEqualTo("Looks good");
         assertThat(response.getTaskId()).isEqualTo(3L);
         assertThat(response.getUserId()).isEqualTo(2L);
-        verify(currentUserService).validateProjectAccess(task.getProject());
+        assertThat(response.getUsername()).isEqualTo("mahmut@example.com");
+        verify(commentRepository).save(argThat(comment ->
+                comment.getContent().equals("Looks good")
+                        && comment.getTask().equals(task)
+                        && comment.getUser().equals(user)
+        ));
     }
 
     @Test
-    void getCommentsByTaskId_shouldReturnComments() {
+    void addComment_whenTaskNotFound_shouldThrowResourceNotFoundException() {
+        CreateCommentRequest request = CreateCommentRequest.builder()
+                .content("Looks good")
+                .build();
+
+        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> commentService.addComment(99L, 2L, request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Task not found with id: 99");
+        verifyNoInteractions(userRepository, commentRepository);
+    }
+
+    @Test
+    void addComment_whenUserNotFound_shouldThrowResourceNotFoundException() {
+        CreateCommentRequest request = CreateCommentRequest.builder()
+                .content("Looks good")
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task()));
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> commentService.addComment(3L, 99L, request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("User not found with id: 99");
+        verifyNoInteractions(commentRepository);
+    }
+
+    @Test
+    void getCommentsByTask_shouldReturnComments() {
         Task task = task();
         User user = user();
         Comment comment = Comment.builder()
@@ -81,56 +117,16 @@ class CommentServiceImplTest {
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
-        when(commentRepository.findByTaskId(3L)).thenReturn(List.of(comment));
+        when(commentRepository.findByTaskIdOrderByCreatedAtDesc(3L)).thenReturn(List.of(comment));
 
-        List<CommentResponse> responses = commentService.getCommentsByTaskId(3L);
+        List<CommentResponse> responses = commentService.getCommentsByTask(3L);
 
         assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getId()).isEqualTo(4L);
         assertThat(responses.get(0).getContent()).isEqualTo("Looks good");
-        assertThat(responses.get(0).getTaskTitle()).isEqualTo("Create tests");
-        verify(currentUserService).validateProjectAccess(task.getProject());
-    }
-
-    @Test
-    void getCommentsByTaskId_whenTaskNotFound_shouldThrowResourceNotFoundException() {
-        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> commentService.getCommentsByTaskId(99L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("Task not found with id: 99");
-    }
-
-    @Test
-    void update_whenCommentOwner_shouldUpdateComment() {
-        Task task = task();
-        User user = user();
-        Comment comment = Comment.builder()
-                .id(4L)
-                .content("Old comment")
-                .task(task)
-                .user(user)
-                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
-                .build();
-        CommentRequest request = CommentRequest.builder()
-                .content("Updated comment")
-                .build();
-
-        when(commentRepository.findById(4L)).thenReturn(Optional.of(comment));
-        when(currentUserService.getCurrentUser()).thenReturn(user);
-        when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        CommentResponse response = commentService.update(4L, request);
-
-        assertThat(response.getContent()).isEqualTo("Updated comment");
-    }
-
-    @Test
-    void delete_whenCommentNotFound_shouldThrowResourceNotFoundException() {
-        when(commentRepository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> commentService.delete(99L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("Comment not found with id: 99");
+        assertThat(responses.get(0).getTaskId()).isEqualTo(3L);
+        assertThat(responses.get(0).getUserId()).isEqualTo(2L);
+        assertThat(responses.get(0).getUsername()).isEqualTo("mahmut@example.com");
     }
 
     private Task task() {
@@ -148,6 +144,7 @@ class CommentServiceImplTest {
                 .id(2L)
                 .firstName("Mahmut")
                 .lastName("Kelkit")
+                .email("mahmut@example.com")
                 .build();
     }
 }
