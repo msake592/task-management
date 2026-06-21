@@ -1,14 +1,17 @@
 package com.mahmutsalih.task_management.security;
 
-import com.mahmutsalih.task_management.entity.Role;
-import com.mahmutsalih.task_management.entity.User;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import com.mahmutsalih.task_management.entity.Role;
+import com.mahmutsalih.task_management.entity.User;
 
 @Service
 public class JwtService {
