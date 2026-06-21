@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getProjects } from '../api/projectApi';
 import { createTask } from '../api/taskApi';
+import { getUsers } from '../api/userApi';
 import { getApiErrorMessage } from '../utils/apiError';
 
 const initialFormData = {
@@ -11,6 +12,7 @@ const initialFormData = {
   priority: 'MEDIUM',
   dueDate: '',
   projectId: '',
+  assignedUserId: '',
 };
 
 const statusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -28,30 +30,64 @@ function normalizeProjects(data) {
   return [];
 }
 
+function normalizeUsers(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.content)) {
+    return data.content;
+  }
+
+  return [];
+}
+
+function getUserOptionLabel(user) {
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+  const email = user?.email || user?.username || `User #${user?.id}`;
+
+  return fullName ? `${fullName} (${email})` : email;
+}
+
 function CreateTaskPage() {
   const [formData, setFormData] = useState(initialFormData);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState('');
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadFormOptions = async () => {
       try {
         setProjectsLoading(true);
+        setUsersLoading(true);
         setProjectsError('');
-        const data = await getProjects();
-        setProjects(normalizeProjects(data));
-      } catch (err) {
-        setProjectsError(getApiErrorMessage(err, 'Projects could not be loaded.'));
+        setUsersError('');
+        const [projectsResult, usersResult] = await Promise.allSettled([getProjects(), getUsers()]);
+
+        if (projectsResult.status === 'fulfilled') {
+          setProjects(normalizeProjects(projectsResult.value));
+        } else {
+          setProjectsError(getApiErrorMessage(projectsResult.reason, 'Projects could not be loaded.'));
+        }
+
+        if (usersResult.status === 'fulfilled') {
+          setUsers(normalizeUsers(usersResult.value));
+        } else {
+          setUsersError(getApiErrorMessage(usersResult.reason, 'Users could not be loaded.'));
+        }
       } finally {
         setProjectsLoading(false);
+        setUsersLoading(false);
       }
     };
 
-    loadProjects();
+    loadFormOptions();
   }, []);
 
   const handleChange = (event) => {
@@ -81,6 +117,7 @@ function CreateTaskPage() {
       description: formData.description.trim(),
       dueDate: formData.dueDate || null,
       projectId: formData.projectId ? Number(formData.projectId) : null,
+      assignedUserId: formData.assignedUserId ? Number(formData.assignedUserId) : null,
     };
 
     try {
@@ -171,15 +208,28 @@ function CreateTaskPage() {
           </label>
         </div>
 
+        <label className="form-field">
+          <span>Assigned user</span>
+          <select name="assignedUserId" value={formData.assignedUserId} onChange={handleChange} disabled={usersLoading}>
+            <option value="">{usersLoading ? 'Loading users...' : 'Not assigned'}</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {getUserOptionLabel(user)}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {!projectsLoading && projects.length === 0 && !projectsError && (
           <p className="empty-message">
             No projects available. <Link to="/projects/new">Create a project first.</Link>
           </p>
         )}
         {projectsError && <p className="error-message">{projectsError}</p>}
+        {usersError && <p className="error-message">{usersError}</p>}
         {error && <p className="error-message">{error}</p>}
 
-        <button className="primary-button" type="submit" disabled={loading || projectsLoading || projects.length === 0}>
+        <button className="primary-button" type="submit" disabled={loading || projectsLoading || usersLoading || projects.length === 0}>
           {loading ? 'Creating...' : 'Create Task'}
         </button>
       </form>

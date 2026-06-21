@@ -3,7 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteTask, getTaskById } from '../api/taskApi';
 
 function getAssignedUser(task) {
-  return task?.assignedUserId || task?.assignedUser?.id || task?.assignedUser?.username || task?.userId || 'Not assigned';
+  return task?.assignedUsername
+    || task?.assignedUserFullName
+    || task?.assignedUser?.email
+    || task?.assignedUser?.username
+    || 'Not assigned';
 }
 
 function TaskDetailPage() {

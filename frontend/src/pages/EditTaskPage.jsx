@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getProjects } from '../api/projectApi';
 import { getTaskById, updateTask } from '../api/taskApi';
+import { getUsers } from '../api/userApi';
 import { getApiErrorMessage } from '../utils/apiError';
 
 const initialFormData = {
@@ -11,6 +12,7 @@ const initialFormData = {
   priority: 'MEDIUM',
   dueDate: '',
   projectId: '',
+  assignedUserId: '',
 };
 
 const statusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -28,6 +30,25 @@ function normalizeProjects(data) {
   return [];
 }
 
+function normalizeUsers(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.content)) {
+    return data.content;
+  }
+
+  return [];
+}
+
+function getUserOptionLabel(user) {
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+  const email = user?.email || user?.username || `User #${user?.id}`;
+
+  return fullName ? `${fullName} (${email})` : email;
+}
+
 function toFormData(task) {
   return {
     title: task?.title || '',
@@ -36,6 +57,7 @@ function toFormData(task) {
     priority: task?.priority || 'MEDIUM',
     dueDate: task?.dueDate || '',
     projectId: task?.projectId || task?.project?.id || '',
+    assignedUserId: task?.assignedUserId || task?.assignedUser?.id || '',
   };
 }
 
@@ -44,9 +66,11 @@ function EditTaskPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState(initialFormData);
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [usersError, setUsersError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -54,10 +78,32 @@ function EditTaskPage() {
       try {
         setLoading(true);
         setLoadError('');
+        setUsersError('');
         setError('');
-        const [taskData, projectsData] = await Promise.all([getTaskById(id), getProjects()]);
-        setFormData(toFormData(taskData));
-        setProjects(normalizeProjects(projectsData));
+        const [taskResult, projectsResult, usersResult] = await Promise.allSettled([
+          getTaskById(id),
+          getProjects(),
+          getUsers(),
+        ]);
+
+        if (taskResult.status === 'rejected') {
+          setLoadError(getApiErrorMessage(taskResult.reason, 'Task could not be loaded. Please check the backend response.'));
+          return;
+        }
+
+        if (projectsResult.status === 'rejected') {
+          setLoadError(getApiErrorMessage(projectsResult.reason, 'Projects could not be loaded.'));
+          return;
+        }
+
+        setFormData(toFormData(taskResult.value));
+        setProjects(normalizeProjects(projectsResult.value));
+
+        if (usersResult.status === 'fulfilled') {
+          setUsers(normalizeUsers(usersResult.value));
+        } else {
+          setUsersError(getApiErrorMessage(usersResult.reason, 'Users could not be loaded.'));
+        }
       } catch (err) {
         setLoadError(getApiErrorMessage(err, 'Task could not be loaded. Please check the backend response.'));
       } finally {
@@ -96,6 +142,7 @@ function EditTaskPage() {
       priority: formData.priority,
       dueDate: formData.dueDate || null,
       projectId: formData.projectId ? Number(formData.projectId) : null,
+      assignedUserId: formData.assignedUserId ? Number(formData.assignedUserId) : null,
     };
 
     try {
@@ -196,11 +243,24 @@ function EditTaskPage() {
           </label>
         </div>
 
+        <label className="form-field">
+          <span>Assigned user</span>
+          <select name="assignedUserId" value={formData.assignedUserId} onChange={handleChange}>
+            <option value="">Not assigned</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {getUserOptionLabel(user)}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {projects.length === 0 && (
           <p className="empty-message">
             No projects available. <Link to="/projects/new">Create a project first.</Link>
           </p>
         )}
+        {usersError && <p className="error-message">{usersError}</p>}
         {error && <p className="error-message">{error}</p>}
 
         <div className="form-actions">

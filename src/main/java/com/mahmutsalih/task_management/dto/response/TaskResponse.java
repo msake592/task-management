@@ -25,5 +25,6 @@ public class TaskResponse {
     private Long projectId;
     private String projectName;
     private Long assignedUserId;
+    private String assignedUsername;
     private String assignedUserFullName;
 }

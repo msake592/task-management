@@ -3,6 +3,7 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,7 +52,12 @@ class TaskServiceImplTest {
     @Test
     void create_shouldCreateTask() {
         Project project = Project.builder().id(1L).name("Project").build();
-        User user = User.builder().id(2L).firstName("Mahmut").lastName("Kelkit").build();
+        User user = User.builder()
+                .id(2L)
+                .firstName("Mahmut")
+                .lastName("Kelkit")
+                .email("mahmut@example.com")
+                .build();
         TaskRequest request = TaskRequest.builder()
                 .title("Create tests")
                 .description("Write service tests")
@@ -79,7 +85,51 @@ class TaskServiceImplTest {
         assertThat(response.getPriority()).isEqualTo(TaskPriority.HIGH);
         assertThat(response.getProjectId()).isEqualTo(1L);
         assertThat(response.getAssignedUserId()).isEqualTo(2L);
+        assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
         verify(currentUserService).validateProjectAccess(project);
+    }
+
+    @Test
+    void create_withoutAssignedUserId_shouldCreateUnassignedTask() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .description("Write service tests")
+                .projectId(1L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(3L);
+            task.setCreatedAt(LocalDateTime.of(2026, 1, 1, 12, 0));
+            return task;
+        });
+
+        TaskResponse response = taskService.create(request);
+
+        assertThat(response.getId()).isEqualTo(3L);
+        assertThat(response.getAssignedUserId()).isNull();
+        assertThat(response.getAssignedUsername()).isNull();
+        verify(userRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void create_whenAssignedUserNotFound_shouldThrowResourceNotFoundException() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .projectId(1L)
+                .assignedUserId(99L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("User not found with id: 99");
+        verify(taskRepository, never()).save(any(Task.class));
     }
 
     @Test
@@ -104,7 +154,12 @@ class TaskServiceImplTest {
     @Test
     void getById_shouldReturnTask() {
         Project project = Project.builder().id(1L).name("Project").build();
-        User user = User.builder().id(2L).firstName("Mahmut").lastName("Kelkit").build();
+        User user = User.builder()
+                .id(2L)
+                .firstName("Mahmut")
+                .lastName("Kelkit")
+                .email("mahmut@example.com")
+                .build();
         Task task = Task.builder()
                 .id(3L)
                 .title("Create tests")
@@ -122,6 +177,7 @@ class TaskServiceImplTest {
 
         assertThat(response.getId()).isEqualTo(3L);
         assertThat(response.getProjectName()).isEqualTo("Project");
+        assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
         assertThat(response.getAssignedUserFullName()).isEqualTo("Mahmut Kelkit");
         verify(currentUserService).validateProjectAccess(project);
     }
