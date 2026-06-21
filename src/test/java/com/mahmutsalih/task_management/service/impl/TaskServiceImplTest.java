@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mahmutsalih.task_management.dto.request.TaskFilterRequest;
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
 import com.mahmutsalih.task_management.entity.Project;
@@ -15,6 +16,7 @@ import com.mahmutsalih.task_management.entity.Task;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
+import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
@@ -22,13 +24,20 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.access.AccessDeniedException;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceImplTest {
@@ -133,5 +142,59 @@ class TaskServiceImplTest {
         assertThatThrownBy(() -> taskService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Task not found with id: 99");
+    }
+
+    @Test
+    void getAll_shouldApplyPaginationAndSorting() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        Task task = Task.builder()
+                .id(3L)
+                .title("Create tests")
+                .description("Write service tests")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .project(project)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        TaskFilterRequest filterRequest = TaskFilterRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .projectId(1L)
+                .keyword("tests")
+                .page(1)
+                .size(20)
+                .sortBy("dueDate")
+                .direction("asc")
+                .build();
+        PageRequest expectedPageRequest = PageRequest.of(1, 20, Sort.by(Sort.Direction.ASC, "dueDate"));
+
+        when(currentUserService.isAdmin()).thenReturn(true);
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(task), expectedPageRequest, 1));
+
+        var response = taskService.getAll(filterRequest);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(taskRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getId()).isEqualTo(3L);
+        assertThat(pageable.getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getPageSize()).isEqualTo(20);
+        assertThat(pageable.getSort().getOrderFor("dueDate").getDirection()).isEqualTo(Sort.Direction.ASC);
+    }
+
+    @Test
+    void getAll_whenSortFieldIsInvalid_shouldThrowBadRequestException() {
+        TaskFilterRequest filterRequest = TaskFilterRequest.builder()
+                .sortBy("invalidField")
+                .direction("desc")
+                .build();
+
+        assertThatThrownBy(() -> taskService.getAll(filterRequest))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Sort field must be one of");
+        verify(taskRepository, never()).findAll(any(Specification.class), any(Pageable.class));
     }
 }

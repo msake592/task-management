@@ -1,12 +1,11 @@
 package com.mahmutsalih.task_management.service;
 
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
+import com.mahmutsalih.task_management.dto.request.TaskFilterRequest;
 import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
-import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 public interface TaskService {
 
@@ -14,13 +13,7 @@ public interface TaskService {
 
     TaskResponse getById(Long id);
 
-    Page<TaskResponse> getAll(
-            TaskStatus status,
-            TaskPriority priority,
-            Long projectId,
-            Long assignedUserId,
-            Pageable pageable
-    );
+    Page<TaskResponse> getAll(TaskFilterRequest filterRequest);
 
     TaskResponse update(Long id, TaskUpdateRequest request);
 

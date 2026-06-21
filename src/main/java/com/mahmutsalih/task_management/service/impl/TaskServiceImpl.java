@@ -1,6 +1,7 @@
 package com.mahmutsalih.task_management.service.impl;
 
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
+import com.mahmutsalih.task_management.dto.request.TaskFilterRequest;
 import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
 import com.mahmutsalih.task_management.entity.Project;
@@ -8,24 +9,28 @@ import com.mahmutsalih.task_management.entity.Task;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
+import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.repository.specification.TaskSpecification;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.TaskService;
-import jakarta.persistence.criteria.Predicate;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
+
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "title", "status", "priority", "createdAt", "dueDate"
+    );
 
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
@@ -58,14 +63,14 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Page<TaskResponse> getAll(
-            TaskStatus status,
-            TaskPriority priority,
-            Long projectId,
-            Long assignedUserId,
-            Pageable pageable
-    ) {
-        return taskRepository.findAll(buildSpecification(status, priority, projectId, assignedUserId), pageable)
+    public Page<TaskResponse> getAll(TaskFilterRequest filterRequest) {
+        PageRequest pageRequest = buildPageRequest(filterRequest);
+        Long currentUserId = currentUserService.isAdmin() ? null : currentUserService.getCurrentUser().getId();
+
+        return taskRepository.findAll(
+                        TaskSpecification.withFilters(filterRequest, currentUserService.isAdmin(), currentUserId),
+                        pageRequest
+                )
                 .map(this::toResponse);
     }
 
@@ -138,40 +143,20 @@ public class TaskServiceImpl implements TaskService {
         currentUserService.validateProjectAccess(task.getProject());
     }
 
-    private Specification<Task> buildSpecification(
-            TaskStatus status,
-            TaskPriority priority,
-            Long projectId,
-            Long assignedUserId
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
+    private PageRequest buildPageRequest(TaskFilterRequest filterRequest) {
+        String sortBy = filterRequest.getSortBy();
+        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            throw new BadRequestException("Sort field must be one of: " + String.join(", ", ALLOWED_SORT_FIELDS));
+        }
 
-            if (status != null) {
-                predicates.add(criteriaBuilder.equal(root.get("status"), status));
-            }
+        Sort.Direction direction = Sort.Direction.fromOptionalString(filterRequest.getDirection())
+                .orElse(Sort.Direction.DESC);
 
-            if (priority != null) {
-                predicates.add(criteriaBuilder.equal(root.get("priority"), priority));
-            }
-
-            if (projectId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("project").get("id"), projectId));
-            }
-
-            if (assignedUserId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("assignedUser").get("id"), assignedUserId));
-            }
-
-            if (!currentUserService.isAdmin()) {
-                predicates.add(criteriaBuilder.equal(
-                        root.get("project").get("owner").get("id"),
-                        currentUserService.getCurrentUser().getId()
-                ));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
+        return PageRequest.of(
+                filterRequest.getPage(),
+                filterRequest.getSize(),
+                Sort.by(direction, sortBy)
+        );
     }
 
     private TaskResponse toResponse(Task task) {
