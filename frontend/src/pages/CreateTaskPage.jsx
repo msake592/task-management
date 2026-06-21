@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getProjects } from '../api/projectApi';
 import { createTask } from '../api/taskApi';
+import { getApiErrorMessage } from '../utils/apiError';
 
 const initialFormData = {
   title: '',
@@ -11,11 +13,46 @@ const initialFormData = {
   projectId: '',
 };
 
+const statusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
+const priorityOptions = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+
+function normalizeProjects(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.content)) {
+    return data.content;
+  }
+
+  return [];
+}
+
 function CreateTaskPage() {
   const [formData, setFormData] = useState(initialFormData);
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setProjectsLoading(true);
+        setProjectsError('');
+        const data = await getProjects();
+        setProjects(normalizeProjects(data));
+      } catch (err) {
+        setProjectsError(getApiErrorMessage(err, 'Projects could not be loaded.'));
+      } finally {
+        setProjectsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -33,6 +70,11 @@ function CreateTaskPage() {
       return;
     }
 
+    if (!formData.projectId) {
+      setError('Please select a project.');
+      return;
+    }
+
     const taskData = {
       ...formData,
       title: formData.title.trim(),
@@ -47,7 +89,7 @@ function CreateTaskPage() {
       await createTask(taskData);
       navigate('/tasks');
     } catch (err) {
-      setError('Task could not be created. Please check the form or backend response.');
+      setError(getApiErrorMessage(err, 'Task could not be created. Please check the form or backend response.'));
     } finally {
       setLoading(false);
     }
@@ -84,18 +126,22 @@ function CreateTaskPage() {
           <label className="form-field">
             <span>Status</span>
             <select name="status" value={formData.status} onChange={handleChange}>
-              <option value="TODO">TODO</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="DONE">DONE</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
           </label>
 
           <label className="form-field">
             <span>Priority</span>
             <select name="priority" value={formData.priority} onChange={handleChange}>
-              <option value="LOW">LOW</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="HIGH">HIGH</option>
+              {priorityOptions.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -107,21 +153,31 @@ function CreateTaskPage() {
           </label>
 
           <label className="form-field">
-            <span>Project ID</span>
-            <input
-              type="number"
+            <span>Project</span>
+            <select
               name="projectId"
               value={formData.projectId}
               onChange={handleChange}
-              min="1"
-              placeholder="Project ID"
-            />
+              disabled={projectsLoading || projects.length === 0}
+              required
+            >
+              <option value="">{projectsLoading ? 'Loading projects...' : 'Select a project'}</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
+        {!projectsLoading && projects.length === 0 && !projectsError && (
+          <p className="empty-message">No projects available. Please create a project first.</p>
+        )}
+        {projectsError && <p className="error-message">{projectsError}</p>}
         {error && <p className="error-message">{error}</p>}
 
-        <button className="primary-button" type="submit" disabled={loading}>
+        <button className="primary-button" type="submit" disabled={loading || projectsLoading || projects.length === 0}>
           {loading ? 'Creating...' : 'Create Task'}
         </button>
       </form>

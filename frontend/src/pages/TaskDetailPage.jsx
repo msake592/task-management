@@ -114,8 +114,8 @@ function TaskDetailPage() {
           <strong>{task?.dueDate || 'No due date'}</strong>
         </div>
         <div className="detail-item">
-          <span>Project ID</span>
-          <strong>{task?.projectId || task?.project?.id || 'No project'}</strong>
+          <span>Project</span>
+          <strong>{task?.projectName || task?.project?.name || task?.projectId || task?.project?.id || 'No project'}</strong>
         </div>
         <div className="detail-item">
           <span>Assigned user</span>
