@@ -51,6 +51,21 @@ a {
   color: #1d4ed8;
 }
 
+.nav-button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  font: inherit;
+}
+
+.nav-button:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .main-content {
   width: min(960px, calc(100% - 32px));
   margin: 0 auto;
@@ -126,6 +141,10 @@ a {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+}
+
+.auth-form {
+  max-width: 520px;
 }
 
 .form-row {
