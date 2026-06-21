@@ -1,9 +1,69 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { addComment, getCommentsByTask } from '../api/commentApi';
 import { deleteTask, getTaskById } from '../api/taskApi';
 
 function getAssignedUser(task) {
   return task?.assignedUserId || task?.assignedUser?.id || task?.assignedUser?.username || task?.userId || 'Not assigned';
+}
+
+function readJsonStorage(key) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const payload = token.split('.')[1];
+
+    if (!payload) {
+      return null;
+    }
+
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decodedPayload = window.atob(normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '='));
+    return JSON.parse(decodedPayload);
+  } catch (error) {
+    return null;
+  }
+}
+
+function getCurrentUserId() {
+  const directUserId = localStorage.getItem('userId');
+
+  if (directUserId) {
+    return directUserId;
+  }
+
+  const currentUser = readJsonStorage('currentUser') || readJsonStorage('user') || readJsonStorage('authUser');
+
+  if (currentUser?.id || currentUser?.userId || currentUser?.data?.id || currentUser?.data?.userId) {
+    return currentUser?.id || currentUser?.userId || currentUser?.data?.id || currentUser?.data?.userId;
+  }
+
+  const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
+  return tokenPayload?.userId || tokenPayload?.id || '';
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return 'Not available';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 function TaskDetailPage() {
@@ -13,6 +73,11 @@ function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState('');
+  const [commentContent, setCommentContent] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   useEffect(() => {
     const loadTask = async () => {
@@ -30,6 +95,53 @@ function TaskDetailPage() {
 
     loadTask();
   }, [id]);
+
+  useEffect(() => {
+    const loadComments = async () => {
+      try {
+        setCommentsLoading(true);
+        setCommentsError('');
+        const data = await getCommentsByTask(id);
+        setComments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setCommentsError('Yorumlar yüklenemedi.');
+      } finally {
+        setCommentsLoading(false);
+      }
+    };
+
+    loadComments();
+  }, [id]);
+
+  const handleCommentSubmit = async (event) => {
+    event.preventDefault();
+
+    const trimmedContent = commentContent.trim();
+
+    if (!trimmedContent) {
+      setCommentsError('Boş yorum gönderilemez.');
+      return;
+    }
+
+    const userId = getCurrentUserId();
+
+    if (!userId) {
+      setCommentsError('User information not found.');
+      return;
+    }
+
+    try {
+      setCommentSubmitting(true);
+      setCommentsError('');
+      const newComment = await addComment(id, userId, trimmedContent);
+      setComments((currentComments) => [newComment, ...currentComments]);
+      setCommentContent('');
+    } catch (err) {
+      setCommentsError('Yorum eklenemedi.');
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
 
   const handleDelete = async () => {
     const confirmed = window.confirm('Are you sure you want to delete this task?');
@@ -128,6 +240,55 @@ function TaskDetailPage() {
         <div className="detail-item">
           <span>Updated at</span>
           <strong>{task?.updatedAt || 'Not available'}</strong>
+        </div>
+      </div>
+
+      <div className="comments-panel">
+        <div className="comments-header">
+          <h2>Yorumlar</h2>
+          {commentsLoading && <span>Yükleniyor...</span>}
+        </div>
+
+        <form className="comment-form" onSubmit={handleCommentSubmit}>
+          <label className="form-field">
+            <span>Yorum</span>
+            <textarea
+              name="comment"
+              value={commentContent}
+              onChange={(event) => setCommentContent(event.target.value)}
+              maxLength={1000}
+              rows={4}
+              placeholder="Yorumunuzu yazın"
+            />
+          </label>
+          <div className="comment-form-footer">
+            <span>{commentContent.length}/1000</span>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={commentSubmitting || !commentContent.trim()}
+            >
+              {commentSubmitting ? 'Ekleniyor...' : 'Yorum Ekle'}
+            </button>
+          </div>
+        </form>
+
+        {commentsError && <p className="error-message">{commentsError}</p>}
+
+        <div className="comment-list">
+          {comments.length === 0 && !commentsLoading ? (
+            <p className="empty-message">Henüz yorum yok.</p>
+          ) : (
+            comments.map((comment) => (
+              <article className="comment-item" key={comment.id}>
+                <div className="comment-meta">
+                  <strong>{comment.username || 'Unknown user'}</strong>
+                  <span>{formatDateTime(comment.createdAt)}</span>
+                </div>
+                <p>{comment.content}</p>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </section>
