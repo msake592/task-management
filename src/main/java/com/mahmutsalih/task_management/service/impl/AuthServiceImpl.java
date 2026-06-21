@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
+    private static final String DEFAULT_USER_ROLE = "USER";
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -36,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
                 .lastName(request.getLastName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(findRole(request.getRoleId()))
+                .role(findDefaultUserRole())
                 .build();
 
         return toResponse(userRepository.save(user));
@@ -56,13 +58,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    private Role findRole(Long roleId) {
-        if (roleId == null) {
-            return null;
-        }
-
-        return roleRepository.findById(roleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Role not found with id: " + roleId));
+    private Role findDefaultUserRole() {
+        return roleRepository.findByName(DEFAULT_USER_ROLE)
+                .orElseThrow(() -> new ResourceNotFoundException("Default role not found: " + DEFAULT_USER_ROLE));
     }
 
     private UserResponse toResponse(User user) {

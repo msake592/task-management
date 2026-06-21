@@ -10,14 +10,20 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
-    private static final String DEFAULT_USER_ROLE = "USER";
+    private static final String USER_ROLE = "USER";
+    private static final String ADMIN_ROLE = "ADMIN";
 
     private final RoleRepository roleRepository;
 
     @Override
     public void run(String... args) {
-        if (!roleRepository.existsByName(DEFAULT_USER_ROLE)) {
-            roleRepository.save(Role.builder().name(DEFAULT_USER_ROLE).build());
+        seedRole(USER_ROLE);
+        seedRole(ADMIN_ROLE);
+    }
+
+    private void seedRole(String roleName) {
+        if (!roleRepository.existsByName(roleName)) {
+            roleRepository.save(Role.builder().name(roleName).build());
         }
     }
 }

@@ -7,7 +7,6 @@ const initialFormData = {
   lastName: '',
   email: '',
   password: '',
-  roleId: '',
 };
 
 function RegisterPage() {
@@ -32,7 +31,6 @@ function RegisterPage() {
       lastName: formData.lastName.trim(),
       email: formData.email.trim(),
       password: formData.password,
-      roleId: formData.roleId ? Number(formData.roleId) : null,
     };
 
     try {
@@ -98,11 +96,6 @@ function RegisterPage() {
             required
             placeholder="Password"
           />
-        </label>
-
-        <label className="form-field">
-          <span>Role ID</span>
-          <input type="number" name="roleId" value={formData.roleId} onChange={handleChange} min="1" placeholder="Role ID" />
         </label>
 
         {error && <p className="error-message">{error}</p>}
