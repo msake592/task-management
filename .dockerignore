@@ -2,6 +2,8 @@
 .idea
 .vscode
 target
+frontend/node_modules
+frontend/dist
 *.log
 .env
 .DS_Store

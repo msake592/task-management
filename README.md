@@ -29,6 +29,9 @@ The application reads database and JWT settings from environment variables.
 | `SPRING_DATASOURCE_PASSWORD` | `postgres` |
 | `JWT_SECRET` | no default, must be provided |
 | `JWT_EXPIRATION` | `86400000` |
+| `BACKEND_PORT` | `8080` |
+| `FRONTEND_PORT` | `5173` |
+| `POSTGRES_PORT` | `5433` |
 
 Generate a local JWT secret with:
 
@@ -40,7 +43,7 @@ Do not commit real secrets. Use `.env.example` as a template only.
 
 ## Full Docker Setup
 
-This starts PostgreSQL and the Spring Boot application with one command.
+This starts PostgreSQL, the Spring Boot backend, and the React/Vite frontend with one command.
 
 ```bash
 export JWT_SECRET="<generated-secret>"
@@ -48,10 +51,18 @@ export JWT_EXPIRATION=86400000
 docker compose up --build
 ```
 
-The API runs at:
+Services run at:
 
 ```text
-http://localhost:8080
+Frontend: http://localhost:5173
+Backend API: http://localhost:8080
+PostgreSQL: localhost:5433
+```
+
+If those ports are already in use, override them:
+
+```bash
+BACKEND_PORT=18080 FRONTEND_PORT=15173 POSTGRES_PORT=15433 JWT_SECRET="<generated-secret>" docker compose up --build
 ```
 
 Swagger UI:
@@ -85,7 +96,7 @@ docker compose down -v
 Use this mode when you want PostgreSQL in Docker and the Spring Boot app running locally.
 
 ```bash
-docker compose up -d postgres
+docker compose up -d db
 export JWT_SECRET="<generated-secret>"
 export JWT_EXPIRATION=86400000
 ./mvnw spring-boot:run
@@ -101,14 +112,21 @@ jdbc:postgresql://localhost:5433/task_management_db
 
 `docker-compose.yml` defines:
 
-- `postgres`: PostgreSQL 16, mapped from host port `5433` to container port `5432`
-- `app`: Spring Boot app built from the local `Dockerfile`, mapped to host port `8080`
+- `db`: PostgreSQL 16, mapped from host port `5433` to container port `5432`
+- `backend`: Spring Boot app built from `backend/Dockerfile`, mapped to host port `8080`
+- `frontend`: React/Vite app built from `frontend/Dockerfile`, mapped to host port `5173`
 - `postgres_data`: named volume for persistent PostgreSQL data
 
 Inside Docker, the app connects to PostgreSQL with:
 
 ```text
-jdbc:postgresql://postgres:5432/task_management_db
+jdbc:postgresql://db:5432/task_management_db
+```
+
+The Docker frontend is built with:
+
+```text
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
 ## Run Tests
