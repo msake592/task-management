@@ -25,13 +25,19 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.security.access.AccessDeniedException;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceImplTest {
@@ -255,6 +261,68 @@ class TaskServiceImplTest {
         assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
         assertThat(response.getAssignedUserFullName()).isEqualTo("Mahmut Kelkit");
         verify(currentUserService).validateProjectAccess(project);
+    }
+
+    @Test
+    void getAll_shouldApplyPaginationSortingAndFilters() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        Task task = Task.builder()
+                .id(3L)
+                .title("Create tests")
+                .description("Write service tests")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .project(project)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(task)));
+
+        var response = taskService.getAll(
+                2,
+                20,
+                "dueDate",
+                "asc",
+                TaskStatus.IN_PROGRESS,
+                TaskPriority.HIGH,
+                1L,
+                4L
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(taskRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(pageable.getPageNumber()).isEqualTo(2);
+        assertThat(pageable.getPageSize()).isEqualTo(20);
+        assertThat(pageable.getSort().getOrderFor("dueDate").getDirection()).isEqualTo(Sort.Direction.ASC);
+    }
+
+    @Test
+    void getAll_whenSortParamsAreInvalid_shouldUseDefaults() {
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        taskService.getAll(
+                -1,
+                0,
+                "invalid",
+                "sideways",
+                null,
+                null,
+                null,
+                null
+        );
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(taskRepository).findAll(any(Specification.class), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+
+        assertThat(pageable.getPageNumber()).isZero();
+        assertThat(pageable.getPageSize()).isEqualTo(10);
+        assertThat(pageable.getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 
     @Test

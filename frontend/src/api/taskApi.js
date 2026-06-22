@@ -2,8 +2,8 @@ import axiosInstance from './axiosInstance';
 
 const TASKS_ENDPOINT = '/api/tasks';
 
-export const getTasks = async () => {
-  const response = await axiosInstance.get(TASKS_ENDPOINT);
+export const getTasks = async (params = {}) => {
+  const response = await axiosInstance.get(TASKS_ENDPOINT, { params });
   return response.data;
 };
 
