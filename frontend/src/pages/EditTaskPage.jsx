@@ -4,6 +4,7 @@ import { getProjects } from '../api/projectApi';
 import { getTaskById, updateTask } from '../api/taskApi';
 import { getUsers } from '../api/userApi';
 import { getApiErrorMessage } from '../utils/apiError';
+import { isCurrentUserAdmin } from '../utils/authToken';
 
 const initialFormData = {
   title: '',
@@ -64,6 +65,7 @@ function toFormData(task) {
 function EditTaskPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const canAssignTasks = isCurrentUserAdmin();
   const [formData, setFormData] = useState(initialFormData);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -80,11 +82,8 @@ function EditTaskPage() {
         setLoadError('');
         setUsersError('');
         setError('');
-        const [taskResult, projectsResult, usersResult] = await Promise.allSettled([
-          getTaskById(id),
-          getProjects(),
-          getUsers(),
-        ]);
+        const requests = canAssignTasks ? [getTaskById(id), getProjects(), getUsers()] : [getTaskById(id), getProjects()];
+        const [taskResult, projectsResult, usersResult] = await Promise.allSettled(requests);
 
         if (taskResult.status === 'rejected') {
           setLoadError(getApiErrorMessage(taskResult.reason, 'Task could not be loaded. Please check the backend response.'));
@@ -99,7 +98,9 @@ function EditTaskPage() {
         setFormData(toFormData(taskResult.value));
         setProjects(normalizeProjects(projectsResult.value));
 
-        if (usersResult.status === 'fulfilled') {
+        if (!canAssignTasks) {
+          setUsers([]);
+        } else if (usersResult.status === 'fulfilled') {
           setUsers(normalizeUsers(usersResult.value));
         } else {
           setUsersError(getApiErrorMessage(usersResult.reason, 'Users could not be loaded.'));
@@ -112,7 +113,7 @@ function EditTaskPage() {
     };
 
     loadTask();
-  }, [id]);
+  }, [id, canAssignTasks]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -142,8 +143,11 @@ function EditTaskPage() {
       priority: formData.priority,
       dueDate: formData.dueDate || null,
       projectId: formData.projectId ? Number(formData.projectId) : null,
-      assignedUserId: formData.assignedUserId ? Number(formData.assignedUserId) : null,
     };
+
+    if (canAssignTasks) {
+      taskData.assignedUserId = formData.assignedUserId ? Number(formData.assignedUserId) : null;
+    }
 
     try {
       setSubmitting(true);
@@ -243,24 +247,26 @@ function EditTaskPage() {
           </label>
         </div>
 
-        <label className="form-field">
-          <span>Assigned user</span>
-          <select name="assignedUserId" value={formData.assignedUserId} onChange={handleChange}>
-            <option value="">Not assigned</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {getUserOptionLabel(user)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {canAssignTasks && (
+          <label className="form-field">
+            <span>Assigned user</span>
+            <select name="assignedUserId" value={formData.assignedUserId} onChange={handleChange}>
+              <option value="">Not assigned</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {getUserOptionLabel(user)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {projects.length === 0 && (
           <p className="empty-message">
             No projects available. <Link to="/projects/new">Create a project first.</Link>
           </p>
         )}
-        {usersError && <p className="error-message">{usersError}</p>}
+        {canAssignTasks && usersError && <p className="error-message">{usersError}</p>}
         {error && <p className="error-message">{error}</p>}
 
         <div className="form-actions">
