@@ -10,7 +10,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -45,13 +44,25 @@ public class TaskController {
 
     @GetMapping
     public ResponseEntity<Page<TaskResponse>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction,
             @RequestParam(required = false) TaskStatus status,
             @RequestParam(required = false) TaskPriority priority,
             @RequestParam(required = false) Long projectId,
-            @RequestParam(required = false) Long assignedUserId,
-            Pageable pageable
+            @RequestParam(required = false) Long assignedUserId
     ) {
-        return ResponseEntity.ok(taskService.getAll(status, priority, projectId, assignedUserId, pageable));
+        return ResponseEntity.ok(taskService.getAll(
+                page,
+                size,
+                sortBy,
+                direction,
+                status,
+                priority,
+                projectId,
+                assignedUserId
+        ));
     }
 
     @PutMapping("/{id}")

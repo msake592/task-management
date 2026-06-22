@@ -18,9 +18,12 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,14 @@ public class TaskServiceImpl implements TaskService {
 
     private static final String SELF_ASSIGN_ONLY_MESSAGE = "Users can only assign tasks to themselves.";
     private static final String ASSIGNEE_CHANGE_DENIED_MESSAGE = "Users cannot change task assignee.";
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_SIZE = 10;
+    private static final int MAX_SIZE = 100;
+    private static final String DEFAULT_SORT_FIELD = "createdAt";
+    private static final Sort.Direction DEFAULT_SORT_DIRECTION = Sort.Direction.DESC;
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "title", "status", "priority", "dueDate", "createdAt", "updatedAt"
+    );
 
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
@@ -66,13 +77,19 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Page<TaskResponse> getAll(
+            int page,
+            int size,
+            String sortBy,
+            String direction,
             TaskStatus status,
             TaskPriority priority,
             Long projectId,
-            Long assignedUserId,
-            Pageable pageable
+            Long assignedUserId
     ) {
-        return taskRepository.findAll(buildSpecification(status, priority, projectId, assignedUserId), pageable)
+        return taskRepository.findAll(
+                        buildSpecification(status, priority, projectId, assignedUserId),
+                        buildPageable(page, size, sortBy, direction)
+                )
                 .map(this::toResponse);
     }
 
@@ -217,6 +234,20 @@ public class TaskServiceImpl implements TaskService {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private Pageable buildPageable(int page, int size, String sortBy, String direction) {
+        int normalizedPage = Math.max(page, DEFAULT_PAGE);
+        int normalizedSize = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
+        String normalizedSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : DEFAULT_SORT_FIELD;
+        Sort.Direction normalizedDirection = Sort.Direction.fromOptionalString(direction)
+                .orElse(DEFAULT_SORT_DIRECTION);
+
+        return PageRequest.of(
+                normalizedPage,
+                normalizedSize,
+                Sort.by(normalizedDirection, normalizedSortBy)
+        );
     }
 
     private TaskResponse toResponse(Task task) {

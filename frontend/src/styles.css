@@ -98,6 +98,28 @@ a {
   gap: 16px;
 }
 
+.task-list-controls {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.pagination-controls span {
+  color: #4b5563;
+  font-size: 14px;
+}
+
 .project-list {
   display: grid;
   gap: 16px;
@@ -432,6 +454,11 @@ a {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .pagination-controls {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .detail-header {
