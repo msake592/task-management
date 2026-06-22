@@ -22,11 +22,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
+
+    private static final String SELF_ASSIGN_ONLY_MESSAGE = "Users can only assign tasks to themselves.";
+    private static final String ASSIGNEE_CHANGE_DENIED_MESSAGE = "Users cannot change task assignee.";
 
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
@@ -37,6 +41,8 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse create(TaskRequest request) {
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
+        User currentUser = currentUserService.getCurrentUser();
+        boolean admin = currentUserService.isAdmin(currentUser);
 
         Task task = Task.builder()
                 .title(request.getTitle())
@@ -45,7 +51,7 @@ public class TaskServiceImpl implements TaskService {
                 .priority(request.getPriority() != null ? request.getPriority() : TaskPriority.MEDIUM)
                 .dueDate(request.getDueDate())
                 .project(project)
-                .assignedUser(findUserOrNull(request.getAssignedUserId()))
+                .assignedUser(resolveAssigneeForCreate(request.getAssignedUserId(), currentUser, admin))
                 .build();
 
         return toResponse(taskRepository.save(task));
@@ -74,6 +80,8 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse update(Long id, TaskUpdateRequest request) {
         Task task = findTask(id);
         validateTaskAccess(task);
+        User currentUser = currentUserService.getCurrentUser();
+        boolean admin = currentUserService.isAdmin(currentUser);
 
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
@@ -84,7 +92,7 @@ public class TaskServiceImpl implements TaskService {
         task.setPriority(request.getPriority());
         task.setDueDate(request.getDueDate());
         task.setProject(project);
-        task.setAssignedUser(findUserOrNull(request.getAssignedUserId()));
+        applyAssigneeForUpdate(task, request.getAssignedUserId(), admin);
         task.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(taskRepository.save(task));
@@ -110,6 +118,9 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse assignToUser(Long id, Long userId) {
         Task task = findTask(id);
         validateTaskAccess(task);
+        if (!currentUserService.isAdmin()) {
+            throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
+        }
         task.setAssignedUser(findUser(userId));
         task.setUpdatedAt(LocalDateTime.now());
         return toResponse(taskRepository.save(task));
@@ -136,6 +147,36 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return findUser(id);
+    }
+
+    private User resolveAssigneeForCreate(Long requestedAssigneeId, User currentUser, boolean admin) {
+        if (admin) {
+            return findUserOrNull(requestedAssigneeId);
+        }
+
+        if (requestedAssigneeId == null || requestedAssigneeId.equals(currentUser.getId())) {
+            return currentUser;
+        }
+
+        throw new AccessDeniedException(SELF_ASSIGN_ONLY_MESSAGE);
+    }
+
+    private void applyAssigneeForUpdate(Task task, Long requestedAssigneeId, boolean admin) {
+        if (admin) {
+            task.setAssignedUser(findUserOrNull(requestedAssigneeId));
+            return;
+        }
+
+        User currentAssignee = task.getAssignedUser();
+        if (requestedAssigneeId == null || isSameUser(currentAssignee, requestedAssigneeId)) {
+            return;
+        }
+
+        throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
+    }
+
+    private boolean isSameUser(User user, Long userId) {
+        return user != null && user.getId() != null && user.getId().equals(userId);
     }
 
     private void validateTaskAccess(Task task) {

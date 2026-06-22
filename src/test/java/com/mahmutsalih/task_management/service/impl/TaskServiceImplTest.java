@@ -13,6 +13,7 @@ import com.mahmutsalih.task_management.dto.request.TaskRequest;
 import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
 import com.mahmutsalih.task_management.entity.Project;
+import com.mahmutsalih.task_management.entity.Role;
 import com.mahmutsalih.task_management.entity.Task;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
@@ -51,14 +52,10 @@ class TaskServiceImplTest {
     private TaskServiceImpl taskService;
 
     @Test
-    void create_shouldCreateTask() {
+    void create_whenAdminAssignsAnotherUser_shouldCreateTask() {
         Project project = Project.builder().id(1L).name("Project").build();
-        User user = User.builder()
-                .id(2L)
-                .firstName("Mahmut")
-                .lastName("Kelkit")
-                .email("mahmut@example.com")
-                .build();
+        User admin = adminUser();
+        User user = regularUser(2L, "mahmut@example.com");
         TaskRequest request = TaskRequest.builder()
                 .title("Create tests")
                 .description("Write service tests")
@@ -70,6 +67,8 @@ class TaskServiceImplTest {
                 .build();
 
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(admin);
+        when(currentUserService.isAdmin(admin)).thenReturn(true);
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
             Task task = invocation.getArgument(0);
@@ -91,8 +90,9 @@ class TaskServiceImplTest {
     }
 
     @Test
-    void create_withoutAssignedUserId_shouldCreateUnassignedTask() {
+    void create_whenAdminDoesNotSendAssignedUserId_shouldCreateUnassignedTask() {
         Project project = Project.builder().id(1L).name("Project").build();
+        User admin = adminUser();
         TaskRequest request = TaskRequest.builder()
                 .title("Create tests")
                 .description("Write service tests")
@@ -100,6 +100,8 @@ class TaskServiceImplTest {
                 .build();
 
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(admin);
+        when(currentUserService.isAdmin(admin)).thenReturn(true);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
             Task task = invocation.getArgument(0);
             task.setId(3L);
@@ -116,8 +118,63 @@ class TaskServiceImplTest {
     }
 
     @Test
-    void create_whenAssignedUserNotFound_shouldThrowResourceNotFoundException() {
+    void create_whenUserDoesNotSendAssignedUserId_shouldAssignToCurrentUser() {
         Project project = Project.builder().id(1L).name("Project").build();
+        User currentUser = regularUser(2L, "mahmut@example.com");
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .description("Write service tests")
+                .projectId(1L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(currentUserService.isAdmin(currentUser)).thenReturn(false);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(3L);
+            task.setCreatedAt(LocalDateTime.of(2026, 1, 1, 12, 0));
+            return task;
+        });
+
+        TaskResponse response = taskService.create(request);
+
+        assertThat(response.getAssignedUserId()).isEqualTo(2L);
+        assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
+        verify(userRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void create_whenUserAssignsToSelf_shouldCreateTask() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User currentUser = regularUser(2L, "mahmut@example.com");
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .description("Write service tests")
+                .projectId(1L)
+                .assignedUserId(2L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(currentUserService.isAdmin(currentUser)).thenReturn(false);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(3L);
+            task.setCreatedAt(LocalDateTime.of(2026, 1, 1, 12, 0));
+            return task;
+        });
+
+        TaskResponse response = taskService.create(request);
+
+        assertThat(response.getAssignedUserId()).isEqualTo(2L);
+        assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
+    }
+
+    @Test
+    void create_whenUserAssignsAnotherUser_shouldThrowAccessDeniedException() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User currentUser = regularUser(2L, "mahmut@example.com");
         TaskRequest request = TaskRequest.builder()
                 .title("Create tests")
                 .projectId(1L)
@@ -125,6 +182,28 @@ class TaskServiceImplTest {
                 .build();
 
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(currentUserService.isAdmin(currentUser)).thenReturn(false);
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Users can only assign tasks to themselves.");
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    void create_whenAssignedUserNotFound_shouldThrowResourceNotFoundException() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User admin = adminUser();
+        TaskRequest request = TaskRequest.builder()
+                .title("Create tests")
+                .projectId(1L)
+                .assignedUserId(99L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(admin);
+        when(currentUserService.isAdmin(admin)).thenReturn(true);
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> taskService.create(request))
@@ -155,12 +234,7 @@ class TaskServiceImplTest {
     @Test
     void getById_shouldReturnTask() {
         Project project = Project.builder().id(1L).name("Project").build();
-        User user = User.builder()
-                .id(2L)
-                .firstName("Mahmut")
-                .lastName("Kelkit")
-                .email("mahmut@example.com")
-                .build();
+        User user = regularUser(2L, "mahmut@example.com");
         Task task = Task.builder()
                 .id(3L)
                 .title("Create tests")
@@ -187,6 +261,7 @@ class TaskServiceImplTest {
     void update_shouldReturnUpdatedAt() {
         Project oldProject = Project.builder().id(1L).name("Old Project").build();
         Project project = Project.builder().id(2L).name("Project").build();
+        User admin = adminUser();
         Task task = Task.builder()
                 .id(3L)
                 .title("Old title")
@@ -207,6 +282,8 @@ class TaskServiceImplTest {
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.getCurrentUser()).thenReturn(admin);
+        when(currentUserService.isAdmin(admin)).thenReturn(true);
         when(projectRepository.findById(2L)).thenReturn(Optional.of(project));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -219,11 +296,137 @@ class TaskServiceImplTest {
     }
 
     @Test
+    void update_whenUserChangesAssignedUser_shouldThrowAccessDeniedException() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User currentUser = regularUser(2L, "mahmut@example.com");
+        User assignedUser = regularUser(2L, "mahmut@example.com");
+        Task task = Task.builder()
+                .id(3L)
+                .title("Old title")
+                .description("Old description")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(project)
+                .assignedUser(assignedUser)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated title")
+                .description("Updated description")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .projectId(1L)
+                .assignedUserId(99L)
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(currentUserService.isAdmin(currentUser)).thenReturn(false);
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> taskService.update(3L, request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Users cannot change task assignee.");
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    void update_whenUserOmitsAssignedUserId_shouldKeepCurrentAssignee() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User currentUser = regularUser(2L, "mahmut@example.com");
+        Task task = Task.builder()
+                .id(3L)
+                .title("Old title")
+                .description("Old description")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(project)
+                .assignedUser(currentUser)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated title")
+                .description("Updated description")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .projectId(1L)
+                .assignedUserId(null)
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(currentUserService.isAdmin(currentUser)).thenReturn(false);
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TaskResponse response = taskService.update(3L, request);
+
+        assertThat(response.getAssignedUserId()).isEqualTo(2L);
+        assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
+    }
+
+    @Test
+    void update_whenAdminChangesAssignedUser_shouldUpdateAssignee() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User admin = adminUser();
+        User assignee = regularUser(4L, "assignee@example.com");
+        Task task = Task.builder()
+                .id(3L)
+                .title("Old title")
+                .description("Old description")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(project)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated title")
+                .description("Updated description")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .projectId(1L)
+                .assignedUserId(4L)
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.getCurrentUser()).thenReturn(admin);
+        when(currentUserService.isAdmin(admin)).thenReturn(true);
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(assignee));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TaskResponse response = taskService.update(3L, request);
+
+        assertThat(response.getAssignedUserId()).isEqualTo(4L);
+        assertThat(response.getAssignedUsername()).isEqualTo("assignee@example.com");
+    }
+
+    @Test
     void getById_whenTaskNotFound_shouldThrowResourceNotFoundException() {
         when(taskRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> taskService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Task not found with id: 99");
+    }
+
+    private User adminUser() {
+        return User.builder()
+                .id(1L)
+                .firstName("Admin")
+                .lastName("User")
+                .email("admin@example.com")
+                .role(Role.builder().name("ADMIN").build())
+                .build();
+    }
+
+    private User regularUser(Long id, String email) {
+        return User.builder()
+                .id(id)
+                .firstName("Mahmut")
+                .lastName("Kelkit")
+                .email(email)
+                .role(Role.builder().name("USER").build())
+                .build();
     }
 }
