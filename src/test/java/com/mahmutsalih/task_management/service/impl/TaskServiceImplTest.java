@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
+import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
 import com.mahmutsalih.task_management.entity.Project;
 import com.mahmutsalih.task_management.entity.Task;
@@ -179,6 +180,41 @@ class TaskServiceImplTest {
         assertThat(response.getProjectName()).isEqualTo("Project");
         assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
         assertThat(response.getAssignedUserFullName()).isEqualTo("Mahmut Kelkit");
+        verify(currentUserService).validateProjectAccess(project);
+    }
+
+    @Test
+    void update_shouldReturnUpdatedAt() {
+        Project oldProject = Project.builder().id(1L).name("Old Project").build();
+        Project project = Project.builder().id(2L).name("Project").build();
+        Task task = Task.builder()
+                .id(3L)
+                .title("Old title")
+                .description("Old description")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(oldProject)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated title")
+                .description("Updated description")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.HIGH)
+                .dueDate(LocalDate.of(2026, 2, 1))
+                .projectId(2L)
+                .assignedUserId(null)
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(projectRepository.findById(2L)).thenReturn(Optional.of(project));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TaskResponse response = taskService.update(3L, request);
+
+        assertThat(response.getTitle()).isEqualTo("Updated title");
+        assertThat(response.getUpdatedAt()).isNotNull();
+        verify(currentUserService).validateProjectAccess(oldProject);
         verify(currentUserService).validateProjectAccess(project);
     }
 

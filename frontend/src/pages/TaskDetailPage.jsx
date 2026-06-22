@@ -68,6 +68,20 @@ function formatCommentDate(value) {
   return date.toLocaleString('tr-TR');
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return 'Not available';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('tr-TR');
+}
+
 function TaskDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -237,11 +251,11 @@ function TaskDetailPage() {
         </div>
         <div className="detail-item">
           <span>Created at</span>
-          <strong>{task?.createdAt || 'Not available'}</strong>
+          <strong>{formatDateTime(task?.createdAt)}</strong>
         </div>
         <div className="detail-item">
           <span>Updated at</span>
-          <strong>{task?.updatedAt || 'Not available'}</strong>
+          <strong>{formatDateTime(task?.updatedAt)}</strong>
         </div>
       </div>
 

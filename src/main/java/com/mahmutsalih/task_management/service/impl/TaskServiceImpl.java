@@ -15,6 +15,7 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.TaskService;
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -84,6 +85,7 @@ public class TaskServiceImpl implements TaskService {
         task.setDueDate(request.getDueDate());
         task.setProject(project);
         task.setAssignedUser(findUserOrNull(request.getAssignedUserId()));
+        task.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(taskRepository.save(task));
     }
@@ -100,6 +102,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTask(id);
         validateTaskAccess(task);
         task.setStatus(status);
+        task.setUpdatedAt(LocalDateTime.now());
         return toResponse(taskRepository.save(task));
     }
 
@@ -108,6 +111,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTask(id);
         validateTaskAccess(task);
         task.setAssignedUser(findUser(userId));
+        task.setUpdatedAt(LocalDateTime.now());
         return toResponse(taskRepository.save(task));
     }
 
@@ -186,6 +190,7 @@ public class TaskServiceImpl implements TaskService {
                 .priority(task.getPriority())
                 .dueDate(task.getDueDate())
                 .createdAt(task.getCreatedAt())
+                .updatedAt(task.getUpdatedAt())
                 .projectId(project.getId())
                 .projectName(project.getName())
                 .assignedUserId(assignedUser != null ? assignedUser.getId() : null)
