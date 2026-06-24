@@ -54,8 +54,10 @@ function Navbar() {
         <NavLink to="/tasks/new" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
           Create Task
         </NavLink>
+      </div>
+      <div className="navbar-session">
         {hasToken ? (
-          <div className="navbar-session">
+          <>
             <div className="navbar-user" aria-label="Current user">
               <span className="navbar-user-name">{currentUser?.username || 'User'}</span>
               <span className="navbar-user-role">{currentUser?.displayRole || 'USER'}</span>
@@ -63,7 +65,7 @@ function Navbar() {
             <button className="nav-button" type="button" onClick={handleLogout}>
               Logout
             </button>
-          </div>
+          </>
         ) : (
           <>
             <NavLink to="/login" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>

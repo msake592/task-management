@@ -23,7 +23,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
   padding: 16px 32px;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
@@ -37,7 +37,11 @@ a {
 .navbar-links {
   display: flex;
   align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: center;
+  min-width: 0;
 }
 
 .nav-link {
@@ -70,8 +74,10 @@ a {
 .navbar-session {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 12px;
-  margin-left: 8px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .navbar-user {
@@ -80,7 +86,6 @@ a {
   align-items: flex-end;
   min-width: 0;
   padding: 0 12px;
-  border-left: 1px solid #e5e7eb;
   line-height: 1.2;
 }
 
@@ -486,11 +491,12 @@ a {
   .navbar-links,
   .navbar-session {
     align-items: flex-start;
-    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .navbar-session {
-    margin-left: 0;
+    flex-wrap: wrap;
   }
 
   .navbar-user {
