@@ -12,10 +12,12 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.service.CommentService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
@@ -33,7 +35,9 @@ public class CommentServiceImpl implements CommentService {
                 .user(user)
                 .build();
 
-        return toResponse(commentRepository.save(comment));
+        Comment savedComment = commentRepository.save(comment);
+        log.info("Comment added. commentId={}, taskId={}, userId={}", savedComment.getId(), taskId, userId);
+        return toResponse(savedComment);
     }
 
     @Override

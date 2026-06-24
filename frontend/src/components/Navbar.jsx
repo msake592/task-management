@@ -1,14 +1,25 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { getCurrentUserInfo } from '../utils/authToken';
+
+function getAuthState() {
+  const hasToken = Boolean(localStorage.getItem('token'));
+
+  return {
+    hasToken,
+    currentUser: hasToken ? getCurrentUserInfo() : null,
+  };
+}
 
 function Navbar() {
-  const [hasToken, setHasToken] = useState(() => Boolean(localStorage.getItem('token')));
+  const [authState, setAuthState] = useState(getAuthState);
   const location = useLocation();
   const navigate = useNavigate();
+  const { hasToken, currentUser } = authState;
 
   useEffect(() => {
     const syncAuthState = () => {
-      setHasToken(Boolean(localStorage.getItem('token')));
+      setAuthState(getAuthState());
     };
 
     syncAuthState();
@@ -44,9 +55,15 @@ function Navbar() {
           Create Task
         </NavLink>
         {hasToken ? (
-          <button className="nav-button" type="button" onClick={handleLogout}>
-            Logout
-          </button>
+          <div className="navbar-session">
+            <div className="navbar-user" aria-label="Current user">
+              <span className="navbar-user-name">{currentUser?.username || 'User'}</span>
+              <span className="navbar-user-role">{currentUser?.displayRole || 'USER'}</span>
+            </div>
+            <button className="nav-button" type="button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
         ) : (
           <>
             <NavLink to="/login" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>

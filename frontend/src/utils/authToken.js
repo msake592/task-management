@@ -1,4 +1,4 @@
-function decodeJwtPayload(token) {
+export function decodeJwtPayload(token) {
   try {
     const payload = token.split('.')[1];
 
@@ -17,6 +17,17 @@ function decodeJwtPayload(token) {
 export function getCurrentUserRole() {
   const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
   return tokenPayload?.role || '';
+}
+
+export function getCurrentUserInfo() {
+  const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
+  const role = tokenPayload?.role || '';
+
+  return {
+    username: tokenPayload?.sub || tokenPayload?.email || '',
+    role,
+    displayRole: role.replace(/^ROLE_/, '') || 'USER',
+  };
 }
 
 export function isCurrentUserAdmin() {

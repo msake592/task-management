@@ -11,13 +11,18 @@ import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.ProjectService;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProjectServiceImpl implements ProjectService {
+
+    private static final String ACCESS_DENIED_MESSAGE = "You do not have permission to access this resource";
 
     private final ProjectRepository projectRepository;
     private final CurrentUserService currentUserService;
@@ -35,7 +40,9 @@ public class ProjectServiceImpl implements ProjectService {
                 .owner(currentUser)
                 .build();
 
-        return toResponse(projectRepository.save(project));
+        Project savedProject = projectRepository.save(project);
+        log.info("Project created. projectId={}, name={}", savedProject.getId(), savedProject.getName());
+        return toResponse(savedProject);
     }
 
     @Override
@@ -45,14 +52,14 @@ public class ProjectServiceImpl implements ProjectService {
                     .map(this::toResponse);
         }
 
-        return projectRepository.findByOwner(currentUserService.getCurrentUser(), pageable)
+        return projectRepository.findVisibleToUser(currentUserService.getCurrentUser(), pageable)
                 .map(this::toResponse);
     }
 
     @Override
     public ProjectResponse getById(Long id) {
         Project project = findProject(id);
-        currentUserService.validateProjectAccess(project);
+        validateProjectReadAccess(project);
         return toResponse(project);
     }
 
@@ -67,7 +74,9 @@ public class ProjectServiceImpl implements ProjectService {
         project.setStartDate(request.getStartDate());
         project.setEndDate(request.getEndDate());
 
-        return toResponse(projectRepository.save(project));
+        Project savedProject = projectRepository.save(project);
+        log.info("Project updated. projectId={}", id);
+        return toResponse(savedProject);
     }
 
     @Override
@@ -75,6 +84,7 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = findProject(id);
         currentUserService.validateProjectAccess(project);
         projectRepository.delete(project);
+        log.info("Project deleted. projectId={}", id);
     }
 
     private Project findProject(Long id) {
@@ -86,6 +96,19 @@ public class ProjectServiceImpl implements ProjectService {
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new BadRequestException("End date cannot be before start date");
         }
+    }
+
+    private void validateProjectReadAccess(Project project) {
+        if (currentUserService.canAccessProject(project)) {
+            return;
+        }
+
+        User currentUser = currentUserService.getCurrentUser();
+        if (projectRepository.existsAssignedTaskInProject(project.getId(), currentUser)) {
+            return;
+        }
+
+        throw new AccessDeniedException(ACCESS_DENIED_MESSAGE);
     }
 
     private ProjectResponse toResponse(Project project) {

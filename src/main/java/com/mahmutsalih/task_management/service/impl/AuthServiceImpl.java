@@ -13,11 +13,13 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.JwtService;
 import com.mahmutsalih.task_management.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private static final String DEFAULT_USER_ROLE = "USER";
@@ -46,13 +48,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
+        log.info("Login attempt. email={}", request.getEmail());
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    log.warn("Login failed. email={}", request.getEmail());
+                    return new BadRequestException("Invalid email or password");
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("Login failed. email={}", request.getEmail());
             throw new BadRequestException("Invalid email or password");
         }
 
+        log.info("Login successful. email={}", request.getEmail());
         return AuthResponse.builder()
                 .token(jwtService.generateToken(user))
                 .build();

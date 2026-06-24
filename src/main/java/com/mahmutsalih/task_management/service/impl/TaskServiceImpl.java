@@ -15,11 +15,13 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.TaskService;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.JoinType;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,10 +32,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TaskServiceImpl implements TaskService {
 
     private static final String SELF_ASSIGN_ONLY_MESSAGE = "Users can only assign tasks to themselves.";
     private static final String ASSIGNEE_CHANGE_DENIED_MESSAGE = "Users cannot change task assignee.";
+    private static final String ACCESS_DENIED_MESSAGE = "You do not have permission to access this resource";
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
     private static final int MAX_SIZE = 100;
@@ -65,13 +69,19 @@ public class TaskServiceImpl implements TaskService {
                 .assignedUser(resolveAssigneeForCreate(request.getAssignedUserId(), currentUser, admin))
                 .build();
 
-        return toResponse(taskRepository.save(task));
+        Task savedTask = taskRepository.save(task);
+        log.info(
+                "Task created. taskId={}, assignedUserId={}",
+                savedTask.getId(),
+                getUserId(savedTask.getAssignedUser())
+        );
+        return toResponse(savedTask);
     }
 
     @Override
     public TaskResponse getById(Long id) {
         Task task = findTask(id);
-        validateTaskAccess(task);
+        validateTaskReadAccess(task);
         return toResponse(task);
     }
 
@@ -86,6 +96,17 @@ public class TaskServiceImpl implements TaskService {
             Long projectId,
             Long assignedUserId
     ) {
+        log.debug(
+                "Task list requested. page={}, size={}, sortBy={}, direction={}, status={}, priority={}, projectId={}, assignedUserId={}",
+                page,
+                size,
+                sortBy,
+                direction,
+                status,
+                priority,
+                projectId,
+                assignedUserId
+        );
         return taskRepository.findAll(
                         buildSpecification(status, priority, projectId, assignedUserId),
                         buildPageable(page, size, sortBy, direction)
@@ -102,6 +123,8 @@ public class TaskServiceImpl implements TaskService {
 
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
+        TaskStatus oldStatus = task.getStatus();
+        Long oldAssignedUserId = getUserId(task.getAssignedUser());
 
         task.setTitle(request.getTitle());
         task.setDescription(request.getDescription());
@@ -112,7 +135,11 @@ public class TaskServiceImpl implements TaskService {
         applyAssigneeForUpdate(task, request.getAssignedUserId(), admin);
         task.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(taskRepository.save(task));
+        Task savedTask = taskRepository.save(task);
+        log.info("Task updated. taskId={}", savedTask.getId());
+        logStatusChange(savedTask.getId(), oldStatus, savedTask.getStatus());
+        logAssignmentChange(savedTask.getId(), oldAssignedUserId, getUserId(savedTask.getAssignedUser()));
+        return toResponse(savedTask);
     }
 
     @Override
@@ -120,15 +147,19 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTask(id);
         validateTaskAccess(task);
         taskRepository.delete(task);
+        log.info("Task deleted. taskId={}", id);
     }
 
     @Override
     public TaskResponse updateStatus(Long id, TaskStatus status) {
         Task task = findTask(id);
         validateTaskAccess(task);
+        TaskStatus oldStatus = task.getStatus();
         task.setStatus(status);
         task.setUpdatedAt(LocalDateTime.now());
-        return toResponse(taskRepository.save(task));
+        Task savedTask = taskRepository.save(task);
+        logStatusChange(savedTask.getId(), oldStatus, savedTask.getStatus());
+        return toResponse(savedTask);
     }
 
     @Override
@@ -138,9 +169,12 @@ public class TaskServiceImpl implements TaskService {
         if (!currentUserService.isAdmin()) {
             throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
         }
+        Long oldAssignedUserId = getUserId(task.getAssignedUser());
         task.setAssignedUser(findUser(userId));
         task.setUpdatedAt(LocalDateTime.now());
-        return toResponse(taskRepository.save(task));
+        Task savedTask = taskRepository.save(task);
+        logAssignmentChange(savedTask.getId(), oldAssignedUserId, getUserId(savedTask.getAssignedUser()));
+        return toResponse(savedTask);
     }
 
     private Task findTask(Long id) {
@@ -196,8 +230,47 @@ public class TaskServiceImpl implements TaskService {
         return user != null && user.getId() != null && user.getId().equals(userId);
     }
 
+    private Long getUserId(User user) {
+        return user != null ? user.getId() : null;
+    }
+
+    private void logStatusChange(Long taskId, TaskStatus oldStatus, TaskStatus newStatus) {
+        if (oldStatus != newStatus) {
+            log.info("Task status changed. taskId={}, oldStatus={}, newStatus={}", taskId, oldStatus, newStatus);
+        }
+    }
+
+    private void logAssignmentChange(Long taskId, Long oldAssignedUserId, Long newAssignedUserId) {
+        if (!java.util.Objects.equals(oldAssignedUserId, newAssignedUserId)) {
+            log.info(
+                    "Task assignment changed. taskId={}, oldAssignedUserId={}, newAssignedUserId={}",
+                    taskId,
+                    oldAssignedUserId,
+                    newAssignedUserId
+            );
+        }
+    }
+
     private void validateTaskAccess(Task task) {
         currentUserService.validateProjectAccess(task.getProject());
+    }
+
+    private void validateTaskReadAccess(Task task) {
+        if (currentUserService.isAdmin()) {
+            return;
+        }
+
+        User currentUser = currentUserService.getCurrentUser();
+        if (isProjectOwner(task.getProject(), currentUser) || isSameUser(task.getAssignedUser(), currentUser.getId())) {
+            return;
+        }
+
+        throw new AccessDeniedException(ACCESS_DENIED_MESSAGE);
+    }
+
+    private boolean isProjectOwner(Project project, User user) {
+        User owner = project != null ? project.getOwner() : null;
+        return owner != null && user != null && owner.getId() != null && owner.getId().equals(user.getId());
     }
 
     private Specification<Task> buildSpecification(
@@ -208,6 +281,8 @@ public class TaskServiceImpl implements TaskService {
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            var projectJoin = root.join("project", JoinType.LEFT);
+            var assignedUserJoin = root.join("assignedUser", JoinType.LEFT);
 
             if (status != null) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
@@ -218,17 +293,18 @@ public class TaskServiceImpl implements TaskService {
             }
 
             if (projectId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("project").get("id"), projectId));
+                predicates.add(criteriaBuilder.equal(projectJoin.get("id"), projectId));
             }
 
             if (assignedUserId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("assignedUser").get("id"), assignedUserId));
+                predicates.add(criteriaBuilder.equal(assignedUserJoin.get("id"), assignedUserId));
             }
 
             if (!currentUserService.isAdmin()) {
-                predicates.add(criteriaBuilder.equal(
-                        root.get("project").get("owner").get("id"),
-                        currentUserService.getCurrentUser().getId()
+                Long currentUserId = currentUserService.getCurrentUser().getId();
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.equal(projectJoin.get("owner").get("id"), currentUserId),
+                        criteriaBuilder.equal(assignedUserJoin.get("id"), currentUserId)
                 ));
             }
 

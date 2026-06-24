@@ -27,6 +27,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -253,6 +259,7 @@ class TaskServiceImplTest {
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.isAdmin()).thenReturn(true);
 
         TaskResponse response = taskService.getById(3L);
 
@@ -260,7 +267,56 @@ class TaskServiceImplTest {
         assertThat(response.getProjectName()).isEqualTo("Project");
         assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
         assertThat(response.getAssignedUserFullName()).isEqualTo("Mahmut Kelkit");
-        verify(currentUserService).validateProjectAccess(project);
+    }
+
+    @Test
+    void getById_whenCurrentUserIsAssignee_shouldReturnTask() {
+        User owner = regularUser(5L, "owner@example.com");
+        User assignee = regularUser(2L, "mahmut@example.com");
+        Project project = Project.builder().id(1L).name("Project").owner(owner).build();
+        Task task = Task.builder()
+                .id(3L)
+                .title("Assigned task")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(project)
+                .assignedUser(assignee)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.isAdmin()).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(assignee);
+
+        TaskResponse response = taskService.getById(3L);
+
+        assertThat(response.getId()).isEqualTo(3L);
+        assertThat(response.getAssignedUserId()).isEqualTo(2L);
+    }
+
+    @Test
+    void getById_whenCurrentUserIsNotOwnerOrAssignee_shouldThrowAccessDeniedException() {
+        User owner = regularUser(5L, "owner@example.com");
+        User assignee = regularUser(2L, "mahmut@example.com");
+        User currentUser = regularUser(9L, "other@example.com");
+        Project project = Project.builder().id(1L).name("Project").owner(owner).build();
+        Task task = Task.builder()
+                .id(3L)
+                .title("Assigned task")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .project(project)
+                .assignedUser(assignee)
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(currentUserService.isAdmin()).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+
+        assertThatThrownBy(() -> taskService.getById(3L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You do not have permission to access this resource");
     }
 
     @Test
@@ -323,6 +379,57 @@ class TaskServiceImplTest {
         assertThat(pageable.getPageNumber()).isZero();
         assertThat(pageable.getPageSize()).isEqualTo(10);
         assertThat(pageable.getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void getAll_whenCurrentUserIsNotAdmin_shouldScopeToOwnedOrAssignedTasks() {
+        User currentUser = regularUser(2L, "mahmut@example.com");
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        taskService.getAll(
+                0,
+                10,
+                "createdAt",
+                "desc",
+                null,
+                null,
+                null,
+                null
+        );
+
+        ArgumentCaptor<Specification<Task>> specificationCaptor = ArgumentCaptor.forClass(Specification.class);
+        verify(taskRepository).findAll(specificationCaptor.capture(), any(Pageable.class));
+
+        Root<Task> root = org.mockito.Mockito.mock(Root.class);
+        CriteriaQuery<?> query = org.mockito.Mockito.mock(CriteriaQuery.class);
+        CriteriaBuilder criteriaBuilder = org.mockito.Mockito.mock(CriteriaBuilder.class);
+        Join projectJoin = org.mockito.Mockito.mock(Join.class);
+        Join assignedUserJoin = org.mockito.Mockito.mock(Join.class);
+        Path<Object> ownerPath = org.mockito.Mockito.mock(Path.class);
+        Path<Object> ownerIdPath = org.mockito.Mockito.mock(Path.class);
+        Path<Object> assignedUserIdPath = org.mockito.Mockito.mock(Path.class);
+        Predicate ownerPredicate = org.mockito.Mockito.mock(Predicate.class);
+        Predicate assigneePredicate = org.mockito.Mockito.mock(Predicate.class);
+        Predicate visibilityPredicate = org.mockito.Mockito.mock(Predicate.class);
+        Predicate finalPredicate = org.mockito.Mockito.mock(Predicate.class);
+
+        when(root.join("project", jakarta.persistence.criteria.JoinType.LEFT)).thenReturn(projectJoin);
+        when(root.join("assignedUser", jakarta.persistence.criteria.JoinType.LEFT)).thenReturn(assignedUserJoin);
+        when(projectJoin.get("owner")).thenReturn(ownerPath);
+        when(ownerPath.get("id")).thenReturn(ownerIdPath);
+        when(assignedUserJoin.get("id")).thenReturn(assignedUserIdPath);
+        when(currentUserService.isAdmin()).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(criteriaBuilder.equal(ownerIdPath, 2L)).thenReturn(ownerPredicate);
+        when(criteriaBuilder.equal(assignedUserIdPath, 2L)).thenReturn(assigneePredicate);
+        when(criteriaBuilder.or(ownerPredicate, assigneePredicate)).thenReturn(visibilityPredicate);
+        when(criteriaBuilder.and(visibilityPredicate)).thenReturn(finalPredicate);
+
+        Predicate predicate = specificationCaptor.getValue().toPredicate(root, query, criteriaBuilder);
+
+        assertThat(predicate).isEqualTo(finalPredicate);
+        verify(currentUserService).getCurrentUser();
     }
 
     @Test

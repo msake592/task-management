@@ -25,6 +25,7 @@ import org.springframework.data.domain.Pageable;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceImplTest {
@@ -79,19 +80,19 @@ class ProjectServiceImplTest {
     }
 
     @Test
-    void getAll_whenCurrentUserIsNotAdmin_shouldReturnOwnedProjects() {
+    void getAll_whenCurrentUserIsNotAdmin_shouldReturnVisibleProjects() {
         Pageable pageable = Pageable.unpaged();
-        User owner = User.builder().id(2L).email("user@test.com").build();
-        Project project = Project.builder().id(1L).name("Owned Project").owner(owner).build();
+        User user = User.builder().id(2L).email("user@test.com").build();
+        Project project = Project.builder().id(1L).name("Visible Project").owner(user).build();
 
         when(currentUserService.isAdmin()).thenReturn(false);
-        when(currentUserService.getCurrentUser()).thenReturn(owner);
-        when(projectRepository.findByOwner(owner, pageable)).thenReturn(new PageImpl<>(List.of(project)));
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(projectRepository.findVisibleToUser(user, pageable)).thenReturn(new PageImpl<>(List.of(project)));
 
         Page<ProjectResponse> response = projectService.getAll(pageable);
 
-        assertThat(response.getContent()).extracting(ProjectResponse::getName).containsExactly("Owned Project");
-        verify(projectRepository).findByOwner(owner, pageable);
+        assertThat(response.getContent()).extracting(ProjectResponse::getName).containsExactly("Visible Project");
+        verify(projectRepository).findVisibleToUser(user, pageable);
     }
 
     @Test
@@ -104,12 +105,47 @@ class ProjectServiceImplTest {
                 .build();
 
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.canAccessProject(project)).thenReturn(true);
 
         ProjectResponse response = projectService.getById(1L);
 
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getName()).isEqualTo("Task Management");
-        verify(currentUserService).validateProjectAccess(project);
+        verify(currentUserService).canAccessProject(project);
+    }
+
+    @Test
+    void getById_whenCurrentUserHasAssignedTaskInProject_shouldReturnProject() {
+        User user = User.builder().id(2L).email("user@test.com").build();
+        Project project = Project.builder()
+                .id(1L)
+                .name("Assigned Project")
+                .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.canAccessProject(project)).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(projectRepository.existsAssignedTaskInProject(1L, user)).thenReturn(true);
+
+        ProjectResponse response = projectService.getById(1L);
+
+        assertThat(response.getName()).isEqualTo("Assigned Project");
+    }
+
+    @Test
+    void getById_whenCurrentUserCannotAccessProjectAndHasNoAssignedTask_shouldThrowAccessDeniedException() {
+        User user = User.builder().id(2L).email("user@test.com").build();
+        Project project = Project.builder().id(1L).name("Other Project").build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.canAccessProject(project)).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(projectRepository.existsAssignedTaskInProject(1L, user)).thenReturn(false);
+
+        assertThatThrownBy(() -> projectService.getById(1L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You do not have permission to access this resource");
     }
 
     @Test
