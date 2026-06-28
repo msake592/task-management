@@ -21,7 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,9 +33,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class TaskServiceImpl implements TaskService {
 
+    private static final Logger logger = LoggerFactory.getLogger(TaskServiceImpl.class);
     private static final String SELF_ASSIGN_ONLY_MESSAGE = "Users can only assign tasks to themselves.";
     private static final String ASSIGNEE_CHANGE_DENIED_MESSAGE = "Users cannot change task assignee.";
     private static final String ACCESS_DENIED_MESSAGE = "You do not have permission to access this resource";
@@ -70,7 +71,7 @@ public class TaskServiceImpl implements TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(task);
-        log.info(
+        logger.info(
                 "Task created. taskId={}, assignedUserId={}",
                 savedTask.getId(),
                 getUserId(savedTask.getAssignedUser())
@@ -96,7 +97,7 @@ public class TaskServiceImpl implements TaskService {
             Long projectId,
             Long assignedUserId
     ) {
-        log.debug(
+        logger.debug(
                 "Task list requested. page={}, size={}, sortBy={}, direction={}, status={}, priority={}, projectId={}, assignedUserId={}",
                 page,
                 size,
@@ -136,7 +137,7 @@ public class TaskServiceImpl implements TaskService {
         task.setUpdatedAt(LocalDateTime.now());
 
         Task savedTask = taskRepository.save(task);
-        log.info("Task updated. taskId={}", savedTask.getId());
+        logger.info("Task updated. taskId={}", savedTask.getId());
         logStatusChange(savedTask.getId(), oldStatus, savedTask.getStatus());
         logAssignmentChange(savedTask.getId(), oldAssignedUserId, getUserId(savedTask.getAssignedUser()));
         return toResponse(savedTask);
@@ -147,7 +148,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTask(id);
         validateTaskAccess(task);
         taskRepository.delete(task);
-        log.info("Task deleted. taskId={}", id);
+        logger.info("Task deleted. taskId={}", id);
     }
 
     @Override
@@ -167,6 +168,8 @@ public class TaskServiceImpl implements TaskService {
         Task task = findTask(id);
         validateTaskAccess(task);
         if (!currentUserService.isAdmin()) {
+            logger.warn("User attempted to change task assignee without permission. userId={}, taskId={}",
+                    getCurrentUserId(), id);
             throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
         }
         Long oldAssignedUserId = getUserId(task.getAssignedUser());
@@ -209,6 +212,8 @@ public class TaskServiceImpl implements TaskService {
             return currentUser;
         }
 
+        logger.warn("User attempted to assign task to another user. userId={}, requestedAssigneeId={}",
+                currentUser.getId(), requestedAssigneeId);
         throw new AccessDeniedException(SELF_ASSIGN_ONLY_MESSAGE);
     }
 
@@ -223,6 +228,8 @@ public class TaskServiceImpl implements TaskService {
             return;
         }
 
+        logger.warn("User attempted to change task assignee without permission. userId={}, taskId={}",
+                getCurrentUserId(), task.getId());
         throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
     }
 
@@ -236,13 +243,14 @@ public class TaskServiceImpl implements TaskService {
 
     private void logStatusChange(Long taskId, TaskStatus oldStatus, TaskStatus newStatus) {
         if (oldStatus != newStatus) {
-            log.info("Task status changed. taskId={}, oldStatus={}, newStatus={}", taskId, oldStatus, newStatus);
+            logger.info("Task status changed. taskId={}, oldStatus={}, newStatus={}",
+                    taskId, oldStatus, newStatus);
         }
     }
 
     private void logAssignmentChange(Long taskId, Long oldAssignedUserId, Long newAssignedUserId) {
         if (!java.util.Objects.equals(oldAssignedUserId, newAssignedUserId)) {
-            log.info(
+            logger.info(
                     "Task assignment changed. taskId={}, oldAssignedUserId={}, newAssignedUserId={}",
                     taskId,
                     oldAssignedUserId,
@@ -252,7 +260,18 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void validateTaskAccess(Task task) {
-        currentUserService.validateProjectAccess(task.getProject());
+        try {
+            currentUserService.validateProjectAccess(task.getProject());
+        } catch (AccessDeniedException exception) {
+            logger.warn("User attempted to access unauthorized task. userId={}, taskId={}",
+                    getCurrentUserId(), task.getId());
+            throw exception;
+        }
+    }
+
+    private Long getCurrentUserId() {
+        User currentUser = currentUserService.getCurrentUser();
+        return currentUser != null ? currentUser.getId() : null;
     }
 
     private void validateTaskReadAccess(Task task) {
@@ -265,6 +284,8 @@ public class TaskServiceImpl implements TaskService {
             return;
         }
 
+        logger.warn("User attempted to access unauthorized task. userId={}, taskId={}",
+                currentUser.getId(), task.getId());
         throw new AccessDeniedException(ACCESS_DENIED_MESSAGE);
     }
 

@@ -13,15 +13,16 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.JwtService;
 import com.mahmutsalih.task_management.service.AuthService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final String DEFAULT_USER_ROLE = "USER";
 
     private final UserRepository userRepository;
@@ -43,24 +44,26 @@ public class AuthServiceImpl implements AuthService {
                 .role(findDefaultUserRole())
                 .build();
 
-        return toResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+        logger.info("User registered successfully. userId={}, username={}", savedUser.getId(), savedUser.getEmail());
+        return toResponse(savedUser);
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        log.info("Login attempt. email={}", request.getEmail());
+        logger.info("Login attempt. email={}", request.getEmail());
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> {
-                    log.warn("Login failed. email={}", request.getEmail());
+                    logger.warn("Login failed. email={}", request.getEmail());
                     return new BadRequestException("Invalid email or password");
                 });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            log.warn("Login failed. email={}", request.getEmail());
+            logger.warn("Login failed. email={}", request.getEmail());
             throw new BadRequestException("Invalid email or password");
         }
 
-        log.info("Login successful. email={}", request.getEmail());
+        logger.info("Login successful. email={}", request.getEmail());
         return AuthResponse.builder()
                 .token(jwtService.generateToken(user))
                 .build();

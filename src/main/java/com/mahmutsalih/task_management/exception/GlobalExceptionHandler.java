@@ -6,7 +6,8 @@ import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,15 +20,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
-@Slf4j
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(
             ResourceNotFoundException exception,
             HttpServletRequest request
     ) {
-        log.warn("Resource not found. path={}, message={}", request.getRequestURI(), exception.getMessage());
+        logger.warn("Resource not found. path={}, message={}", request.getRequestURI(), exception.getMessage());
         return buildErrorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
@@ -36,7 +38,7 @@ public class GlobalExceptionHandler {
             BadRequestException exception,
             HttpServletRequest request
     ) {
-        log.warn("Bad request. path={}, message={}", request.getRequestURI(), exception.getMessage());
+        logger.warn("Bad request. path={}, message={}", request.getRequestURI(), exception.getMessage());
         return buildErrorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
     }
 
@@ -45,7 +47,7 @@ public class GlobalExceptionHandler {
             AccessDeniedException exception,
             HttpServletRequest request
     ) {
-        log.warn("Access denied. path={}, message={}", request.getRequestURI(), exception.getMessage());
+        logger.warn("Access denied. path={}, message={}", request.getRequestURI(), exception.getMessage());
         return buildErrorResponse(HttpStatus.FORBIDDEN, exception.getMessage(), request);
     }
 
@@ -58,7 +60,7 @@ public class GlobalExceptionHandler {
         for (FieldError fieldError : exception.getBindingResult().getFieldErrors()) {
             validationErrors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
         }
-        log.warn("Validation failed. path={}, fields={}", request.getRequestURI(), validationErrors.keySet());
+        logger.warn("Validation failed. path={}, fields={}", request.getRequestURI(), validationErrors.keySet());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -81,7 +83,8 @@ public class GlobalExceptionHandler {
         exception.getConstraintViolations().forEach(violation ->
                 validationErrors.put(violation.getPropertyPath().toString(), violation.getMessage())
         );
-        log.warn("Constraint validation failed. path={}, fields={}", request.getRequestURI(), validationErrors.keySet());
+        logger.warn("Constraint validation failed. path={}, fields={}",
+                request.getRequestURI(), validationErrors.keySet());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -101,13 +104,13 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException.class
     })
     public ResponseEntity<ErrorResponse> handleInvalidRequest(Exception exception, HttpServletRequest request) {
-        log.warn("Invalid request. path={}, message={}", request.getRequestURI(), exception.getMessage());
+        logger.warn("Invalid request. path={}, message={}", request.getRequestURI(), exception.getMessage());
         return buildErrorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception exception, HttpServletRequest request) {
-        log.error("Unexpected error occurred. path={}", request.getRequestURI(), exception);
+        logger.error("Unexpected error occurred. path={}", request.getRequestURI(), exception);
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, exception.getMessage(), request);
     }
 
