@@ -13,10 +13,12 @@ import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.JwtService;
 import com.mahmutsalih.task_management.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
@@ -41,18 +43,25 @@ public class AuthServiceImpl implements AuthService {
                 .role(findDefaultUserRole())
                 .build();
 
-        return toResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+        log.info("User registered successfully. userId={}, username={}", savedUser.getId(), savedUser.getEmail());
+        return toResponse(savedUser);
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+                .orElseThrow(() -> {
+                    log.warn("Failed login attempt. username={}", request.getEmail());
+                    return new BadRequestException("Invalid email or password");
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("Failed login attempt. username={}", request.getEmail());
             throw new BadRequestException("Invalid email or password");
         }
 
+        log.info("User logged in successfully. username={}", user.getEmail());
         return AuthResponse.builder()
                 .token(jwtService.generateToken(user))
                 .build();
