@@ -4,6 +4,7 @@ import com.mahmutsalih.task_management.dto.request.ProjectRequest;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
 import com.mahmutsalih.task_management.entity.User;
+import com.mahmutsalih.task_management.enums.ProjectStatus;
 import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
@@ -119,6 +120,13 @@ public class ProjectServiceImpl implements ProjectService {
                 .startDate(project.getStartDate())
                 .endDate(project.getEndDate())
                 .createdAt(project.getCreatedAt())
+                .deadlineStatus(resolveDeadlineStatus(project.getEndDate()))
                 .build();
+    }
+
+    private ProjectStatus resolveDeadlineStatus(LocalDate endDate) {
+        return endDate != null && endDate.isBefore(LocalDate.now())
+                ? ProjectStatus.EXPIRED
+                : ProjectStatus.ACTIVE;
     }
 }

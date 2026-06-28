@@ -18,6 +18,7 @@ import com.mahmutsalih.task_management.entity.Task;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
+import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
@@ -583,6 +584,76 @@ class TaskServiceImplTest {
         assertThatThrownBy(() -> taskService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Task not found with id: 99");
+    }
+
+    @Test
+    void create_whenDeadlineIsAfterProjectEndDate_shouldThrowBadRequestException() {
+        Project project = Project.builder()
+                .id(1L)
+                .name("Project")
+                .startDate(LocalDate.of(2026, 7, 1))
+                .endDate(LocalDate.of(2026, 7, 10))
+                .build();
+        TaskRequest request = TaskRequest.builder()
+                .title("Late task")
+                .dueDate(LocalDate.of(2026, 7, 11))
+                .projectId(1L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Task deadline must be within the project date range.");
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    void create_whenDeadlineIsBeforeProjectStartDate_shouldThrowBadRequestException() {
+        Project project = Project.builder()
+                .id(1L)
+                .name("Project")
+                .startDate(LocalDate.of(2026, 7, 1))
+                .endDate(LocalDate.of(2026, 7, 10))
+                .build();
+        TaskRequest request = TaskRequest.builder()
+                .title("Early task")
+                .dueDate(LocalDate.of(2026, 6, 30))
+                .projectId(1L)
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Task deadline must be within the project date range.");
+    }
+
+    @Test
+    void update_whenDeadlineIsOutsideNewProjectRange_shouldThrowBadRequestException() {
+        Project oldProject = Project.builder().id(1L).name("Old Project").build();
+        Project newProject = Project.builder()
+                .id(2L)
+                .name("New Project")
+                .endDate(LocalDate.of(2026, 7, 10))
+                .build();
+        Task task = Task.builder().id(3L).project(oldProject).build();
+        TaskUpdateRequest request = TaskUpdateRequest.builder()
+                .title("Updated task")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .dueDate(LocalDate.of(2026, 7, 11))
+                .projectId(2L)
+                .build();
+
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(projectRepository.findById(2L)).thenReturn(Optional.of(newProject));
+        when(currentUserService.getCurrentUser()).thenReturn(adminUser());
+
+        assertThatThrownBy(() -> taskService.update(3L, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Task deadline must be within the project date range.");
+        verify(taskRepository, never()).save(any(Task.class));
     }
 
     private User adminUser() {

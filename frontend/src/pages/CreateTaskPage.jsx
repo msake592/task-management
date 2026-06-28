@@ -5,6 +5,7 @@ import { createTask } from '../api/taskApi';
 import { getUsers } from '../api/userApi';
 import { getApiErrorMessage } from '../utils/apiError';
 import { isCurrentUserAdmin } from '../utils/authToken';
+import { isTaskDeadlineWithinProject, TASK_DEADLINE_ERROR } from '../utils/deadlineValidation';
 
 const initialFormData = {
   title: '',
@@ -62,6 +63,7 @@ function CreateTaskPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const selectedProject = projects.find((project) => String(project.id) === formData.projectId);
 
   useEffect(() => {
     const loadFormOptions = async () => {
@@ -113,6 +115,11 @@ function CreateTaskPage() {
 
     if (!formData.projectId) {
       setError('Please select a project.');
+      return;
+    }
+
+    if (!isTaskDeadlineWithinProject(selectedProject, formData.dueDate)) {
+      setError(TASK_DEADLINE_ERROR);
       return;
     }
 
@@ -194,7 +201,14 @@ function CreateTaskPage() {
         <div className="form-row">
           <label className="form-field">
             <span>Due date</span>
-            <input type="date" name="dueDate" value={formData.dueDate} onChange={handleChange} />
+            <input
+              type="date"
+              name="dueDate"
+              value={formData.dueDate}
+              min={selectedProject?.startDate || undefined}
+              max={selectedProject?.endDate || undefined}
+              onChange={handleChange}
+            />
           </label>
 
           <label className="form-field">

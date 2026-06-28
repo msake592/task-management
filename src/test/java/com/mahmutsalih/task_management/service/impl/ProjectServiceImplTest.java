@@ -10,6 +10,7 @@ import com.mahmutsalih.task_management.dto.request.ProjectRequest;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
 import com.mahmutsalih.task_management.entity.User;
+import com.mahmutsalih.task_management.enums.ProjectStatus;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
@@ -155,5 +156,35 @@ class ProjectServiceImplTest {
         assertThatThrownBy(() -> projectService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Project not found with id: 99");
+    }
+
+    @Test
+    void getById_whenDeadlineHasPassed_shouldReturnExpiredStatus() {
+        Project project = Project.builder()
+                .id(1L)
+                .name("Expired Project")
+                .endDate(LocalDate.now().minusDays(1))
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.canAccessProject(project)).thenReturn(true);
+
+        ProjectResponse response = projectService.getById(1L);
+
+        assertThat(response.getDeadlineStatus()).isEqualTo(ProjectStatus.EXPIRED);
+    }
+
+    @Test
+    void getById_whenDeadlineIsTodayOrMissing_shouldReturnActiveStatus() {
+        Project project = Project.builder()
+                .id(1L)
+                .name("Active Project")
+                .endDate(LocalDate.now())
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.canAccessProject(project)).thenReturn(true);
+
+        ProjectResponse response = projectService.getById(1L);
+
+        assertThat(response.getDeadlineStatus()).isEqualTo(ProjectStatus.ACTIVE);
     }
 }

@@ -58,7 +58,12 @@ function ProjectListPage() {
         <div className="project-list">
           {projects.map((project) => (
             <article className="project-card" key={project.id}>
-              <h2>{project.name}</h2>
+              <div className="project-card-header">
+                <h2>{project.name}</h2>
+                <span className={`deadline-status deadline-status-${project.deadlineStatus?.toLowerCase() || 'active'}`}>
+                  {project.deadlineStatus === 'EXPIRED' ? 'Expired' : 'Active'}
+                </span>
+              </div>
               <p>{project.description || 'No description'}</p>
               <div className="task-meta">
                 <span>Start: {project.startDate || 'No start date'}</span>

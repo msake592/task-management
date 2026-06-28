@@ -1,5 +1,6 @@
 package com.mahmutsalih.task_management.dto.response;
 
+import com.mahmutsalih.task_management.enums.ProjectStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -19,4 +20,5 @@ public class ProjectResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private LocalDateTime createdAt;
+    private ProjectStatus deadlineStatus;
 }

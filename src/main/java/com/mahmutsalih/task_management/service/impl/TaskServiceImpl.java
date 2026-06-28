@@ -8,6 +8,7 @@ import com.mahmutsalih.task_management.entity.Task;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
+import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
@@ -16,6 +17,7 @@ import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.TaskService;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.JoinType;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +41,7 @@ public class TaskServiceImpl implements TaskService {
     private static final String SELF_ASSIGN_ONLY_MESSAGE = "Users can only assign tasks to themselves.";
     private static final String ASSIGNEE_CHANGE_DENIED_MESSAGE = "Users cannot change task assignee.";
     private static final String ACCESS_DENIED_MESSAGE = "You do not have permission to access this resource";
+    private static final String INVALID_DEADLINE_MESSAGE = "Task deadline must be within the project date range.";
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
     private static final int MAX_SIZE = 100;
@@ -57,6 +60,7 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse create(TaskRequest request) {
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
+        validateTaskDeadlineWithinProject(project, request.getDueDate());
         User currentUser = currentUserService.getCurrentUser();
         boolean admin = currentUserService.isAdmin(currentUser);
 
@@ -124,6 +128,7 @@ public class TaskServiceImpl implements TaskService {
 
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
+        validateTaskDeadlineWithinProject(project, request.getDueDate());
         TaskStatus oldStatus = task.getStatus();
         Long oldAssignedUserId = getUserId(task.getAssignedUser());
 
@@ -239,6 +244,23 @@ public class TaskServiceImpl implements TaskService {
 
     private Long getUserId(User user) {
         return user != null ? user.getId() : null;
+    }
+
+    private void validateTaskDeadlineWithinProject(Project project, LocalDate taskDeadline) {
+        if (taskDeadline == null) {
+            return;
+        }
+
+        LocalDate projectStartDate = project.getStartDate();
+        LocalDate projectEndDate = project.getEndDate();
+        boolean beforeStart = projectStartDate != null && taskDeadline.isBefore(projectStartDate);
+        boolean afterEnd = projectEndDate != null && taskDeadline.isAfter(projectEndDate);
+
+        if (beforeStart || afterEnd) {
+            logger.warn("Task deadline validation failed. projectId={}, taskDeadline={}",
+                    project.getId(), taskDeadline);
+            throw new BadRequestException(INVALID_DEADLINE_MESSAGE);
+        }
     }
 
     private void logStatusChange(Long taskId, TaskStatus oldStatus, TaskStatus newStatus) {
