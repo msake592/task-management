@@ -78,8 +78,12 @@ function TaskListPage() {
 
   useEffect(() => {
     const loadFilterOptions = async () => {
-      const [projectsResult, usersResult] = await Promise.allSettled([getProjects(), getUsers()]);
+      const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role?.name === 'ADMIN';
 
+const [projectsResult, usersResult] = await Promise.allSettled([
+  getProjects(),
+  isAdmin ? getUsers() : Promise.resolve([])
+]);
       if (projectsResult.status === 'fulfilled') {
         setProjects(normalizeOptions(projectsResult.value));
       } else {
@@ -198,17 +202,19 @@ function TaskListPage() {
             </select>
           </label>
 
-          <label className="form-field">
-            <span>Assigned user</span>
-            <select name="assignedUserId" value={filters.assignedUserId} onChange={handleFilterChange}>
-              <option value="">All users</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {getUserOptionLabel(user)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isAdmin && (
+            <label className="form-field">
+              <span>Assigned user</span>
+              <select name="assignedUserId" value={filters.assignedUserId} onChange={handleFilterChange}>
+                <option value="">All users</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {getUserOptionLabel(user)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <div className="form-row">

@@ -1,8 +1,10 @@
 package com.mahmutsalih.task_management.repository;
 
-import com.mahmutsalih.task_management.entity.Role;
 import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.mahmutsalih.task_management.entity.Role;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 

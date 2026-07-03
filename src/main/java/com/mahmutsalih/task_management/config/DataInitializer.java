@@ -1,14 +1,16 @@
 package com.mahmutsalih.task_management.config;
 
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
 import com.mahmutsalih.task_management.entity.Role;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.RoleRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
