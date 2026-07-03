@@ -3,6 +3,7 @@ import { getProjects } from '../api/projectApi';
 import { getTasks } from '../api/taskApi';
 import { getUsers } from '../api/userApi';
 import TaskCard from '../components/TaskCard.jsx';
+import { isCurrentUserAdmin } from '../utils/authToken';
 
 const initialFilters = {
   status: '',
@@ -51,7 +52,7 @@ function getUserOptionLabel(user) {
   return fullName ? `${fullName} (${email})` : email;
 }
 
-function buildTaskQuery(filters, sort, page) {
+function buildTaskQuery(filters, sort, page, isAdmin) {
   return {
     page,
     size: pageSize,
@@ -60,11 +61,14 @@ function buildTaskQuery(filters, sort, page) {
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.projectId ? { projectId: Number(filters.projectId) } : {}),
-    ...(filters.assignedUserId ? { assignedUserId: Number(filters.assignedUserId) } : {}),
+    ...(isAdmin && filters.assignedUserId
+      ? { assignedUserId: Number(filters.assignedUserId) }
+      : {}),
   };
 }
 
 function TaskListPage() {
+  const isAdmin = isCurrentUserAdmin();
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -78,34 +82,36 @@ function TaskListPage() {
 
   useEffect(() => {
     const loadFilterOptions = async () => {
-      const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role?.name === 'ADMIN';
+      const optionRequests = [getProjects()];
 
-const [projectsResult, usersResult] = await Promise.allSettled([
-  getProjects(),
-  isAdmin ? getUsers() : Promise.resolve([])
-]);
+      if (isAdmin) {
+        optionRequests.push(getUsers());
+      }
+
+      const [projectsResult, usersResult] = await Promise.allSettled(optionRequests);
+
       if (projectsResult.status === 'fulfilled') {
         setProjects(normalizeOptions(projectsResult.value));
       } else {
         setOptionsError('Filter options could not be fully loaded.');
       }
 
-      if (usersResult.status === 'fulfilled') {
+      if (isAdmin && usersResult?.status === 'fulfilled') {
         setUsers(normalizeOptions(usersResult.value));
-      } else {
+      } else if (isAdmin && usersResult?.status === 'rejected') {
         setOptionsError('Filter options could not be fully loaded.');
       }
     };
 
     loadFilterOptions();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
         setLoading(true);
         setError('');
-        const data = await getTasks(buildTaskQuery(filters, sort, page));
+        const data = await getTasks(buildTaskQuery(filters, sort, page, isAdmin));
         setTasks(normalizeTasks(data));
         setPageData(Array.isArray(data) ? null : data);
       } catch (err) {
@@ -116,7 +122,7 @@ const [projectsResult, usersResult] = await Promise.allSettled([
     };
 
     loadTasks();
-  }, [filters, sort, page]);
+  }, [filters, sort, page, isAdmin]);
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target;

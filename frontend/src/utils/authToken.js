@@ -14,6 +14,35 @@ export function decodeJwtPayload(token) {
   }
 }
 
+function containsAdminRole(value) {
+  if (typeof value === 'string') {
+    return value === 'ADMIN' || value === 'ROLE_ADMIN';
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(containsAdminRole);
+  }
+
+  if (value && typeof value === 'object') {
+    return containsAdminRole(value.name) || containsAdminRole(value.authority);
+  }
+
+  return false;
+}
+
+function getRoleClaims(tokenPayload) {
+  if (!tokenPayload) {
+    return [];
+  }
+
+  return [
+    tokenPayload.role,
+    tokenPayload.roles,
+    tokenPayload.authority,
+    tokenPayload.authorities,
+  ];
+}
+
 export function getCurrentUserRole() {
   const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
   return tokenPayload?.role || '';
@@ -31,6 +60,6 @@ export function getCurrentUserInfo() {
 }
 
 export function isCurrentUserAdmin() {
-  const role = getCurrentUserRole();
-  return role === 'ADMIN' || role === 'ROLE_ADMIN';
+  const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
+  return getRoleClaims(tokenPayload).some(containsAdminRole);
 }
