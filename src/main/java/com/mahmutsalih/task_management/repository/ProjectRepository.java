@@ -19,6 +19,12 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
                     where p.owner = :user
                        or exists (
                            select 1
+                           from ProjectMember pm
+                           where pm.project = p
+                             and pm.user = :user
+                       )
+                       or exists (
+                           select 1
                            from Task t
                            where t.project = p
                              and t.assignedUser = :user
@@ -28,6 +34,12 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
                     select count(p)
                     from Project p
                     where p.owner = :user
+                       or exists (
+                           select 1
+                           from ProjectMember pm
+                           where pm.project = p
+                             and pm.user = :user
+                       )
                        or exists (
                            select 1
                            from Task t

@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProjects } from '../api/projectApi';
+import { getProjectMembers, getProjects } from '../api/projectApi';
 import { createTask } from '../api/taskApi';
-import { getUsers } from '../api/userApi';
 import { getApiErrorMessage } from '../utils/apiError';
-import { isCurrentUserAdmin } from '../utils/authToken';
 import { isTaskDeadlineWithinProject, TASK_DEADLINE_ERROR } from '../utils/deadlineValidation';
 
 const initialFormData = {
@@ -14,7 +12,7 @@ const initialFormData = {
   priority: 'MEDIUM',
   dueDate: '',
   projectId: '',
-  assignedUserId: '',
+  assigneeIds: [],
 };
 
 const statusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -32,34 +30,21 @@ function normalizeProjects(data) {
   return [];
 }
 
-function normalizeUsers(data) {
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (Array.isArray(data?.content)) {
-    return data.content;
-  }
-
-  return [];
-}
-
 function getUserOptionLabel(user) {
-  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+  const fullName = user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ');
   const email = user?.email || user?.username || `User #${user?.id}`;
 
   return fullName ? `${fullName} (${email})` : email;
 }
 
 function CreateTaskPage() {
-  const canAssignTasks = isCurrentUserAdmin();
   const [formData, setFormData] = useState(initialFormData);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState('');
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [usersError, setUsersError] = useState('');
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -69,39 +54,47 @@ function CreateTaskPage() {
     const loadFormOptions = async () => {
       try {
         setProjectsLoading(true);
-        setUsersLoading(canAssignTasks);
         setProjectsError('');
-        setUsersError('');
-        const requests = canAssignTasks ? [getProjects(), getUsers()] : [getProjects()];
-        const [projectsResult, usersResult] = await Promise.allSettled(requests);
-
-        if (projectsResult.status === 'fulfilled') {
-          setProjects(normalizeProjects(projectsResult.value));
-        } else {
-          setProjectsError(getApiErrorMessage(projectsResult.reason, 'Projects could not be loaded.'));
-        }
-
-        if (!canAssignTasks) {
-          setUsers([]);
-        } else if (usersResult.status === 'fulfilled') {
-          setUsers(normalizeUsers(usersResult.value));
-        } else {
-          setUsersError(getApiErrorMessage(usersResult.reason, 'Users could not be loaded.'));
-        }
+        const result = await getProjects();
+        setProjects(normalizeProjects(result));
+      } catch (err) {
+        setProjectsError(getApiErrorMessage(err, 'Projects could not be loaded.'));
       } finally {
         setProjectsLoading(false);
-        setUsersLoading(false);
       }
     };
 
     loadFormOptions();
-  }, [canAssignTasks]);
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    if (name === 'projectId') {
+      setMembers([]);
+      setMembersError('');
+      setFormData((currentData) => ({ ...currentData, projectId: value, assigneeIds: [] }));
+      if (value) {
+        setMembersLoading(true);
+        getProjectMembers(value)
+          .then(setMembers)
+          .catch((err) => setMembersError(getApiErrorMessage(err, 'Project members could not be loaded.')))
+          .finally(() => setMembersLoading(false));
+      }
+      return;
+    }
     setFormData((currentData) => ({
       ...currentData,
       [name]: value,
+    }));
+  };
+
+  const handleAssigneeChange = (event) => {
+    const userId = Number(event.target.value);
+    setFormData((currentData) => ({
+      ...currentData,
+      assigneeIds: event.target.checked
+        ? [...currentData.assigneeIds, userId]
+        : currentData.assigneeIds.filter((id) => id !== userId),
     }));
   };
 
@@ -129,11 +122,8 @@ function CreateTaskPage() {
       description: formData.description.trim(),
       dueDate: formData.dueDate || null,
       projectId: formData.projectId ? Number(formData.projectId) : null,
+      assigneeIds: formData.assigneeIds,
     };
-
-    if (canAssignTasks) {
-      taskData.assignedUserId = formData.assignedUserId ? Number(formData.assignedUserId) : null;
-    }
 
     try {
       setLoading(true);
@@ -230,19 +220,25 @@ function CreateTaskPage() {
           </label>
         </div>
 
-        {canAssignTasks && (
-          <label className="form-field">
-            <span>Assigned user</span>
-            <select name="assignedUserId" value={formData.assignedUserId} onChange={handleChange} disabled={usersLoading}>
-              <option value="">{usersLoading ? 'Loading users...' : 'Not assigned'}</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {getUserOptionLabel(user)}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <fieldset className="member-selector" disabled={!formData.projectId || membersLoading}>
+          <legend>Assignees</legend>
+          {!formData.projectId && <p className="field-help">Select a project first.</p>}
+          {formData.projectId && membersLoading && <span>Loading project members...</span>}
+          {formData.projectId && !membersLoading && members.length === 0 && (
+            <p className="field-help">No project members are available.</p>
+          )}
+          {members.map((member) => (
+            <label className="member-option" key={member.userId}>
+              <input
+                type="checkbox"
+                value={member.userId}
+                checked={formData.assigneeIds.includes(member.userId)}
+                onChange={handleAssigneeChange}
+              />
+              <span>{getUserOptionLabel(member)} — {member.role}</span>
+            </label>
+          ))}
+        </fieldset>
 
         {!projectsLoading && projects.length === 0 && !projectsError && (
           <p className="empty-message">
@@ -250,13 +246,13 @@ function CreateTaskPage() {
           </p>
         )}
         {projectsError && <p className="error-message">{projectsError}</p>}
-        {canAssignTasks && usersError && <p className="error-message">{usersError}</p>}
+        {membersError && <p className="error-message">{membersError}</p>}
         {error && <p className="error-message">{error}</p>}
 
         <button
           className="primary-button"
           type="submit"
-          disabled={loading || projectsLoading || (canAssignTasks && usersLoading) || projects.length === 0}
+          disabled={loading || projectsLoading || membersLoading || projects.length === 0}
         >
           {loading ? 'Creating...' : 'Create Task'}
         </button>

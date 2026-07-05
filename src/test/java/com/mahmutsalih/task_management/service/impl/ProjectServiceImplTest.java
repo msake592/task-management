@@ -11,8 +11,11 @@ import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.ProjectStatus;
+import com.mahmutsalih.task_management.enums.ProjectRole;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
+import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
+import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +36,12 @@ class ProjectServiceImplTest {
 
     @Mock
     private ProjectRepository projectRepository;
+
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private CurrentUserService currentUserService;
@@ -64,6 +73,10 @@ class ProjectServiceImplTest {
         assertThat(response.getName()).isEqualTo("Task Management");
         assertThat(response.getDescription()).isEqualTo("Project description");
         verify(projectRepository).save(org.mockito.ArgumentMatchers.argThat(project -> project.getOwner().equals(user)));
+        verify(projectMemberRepository).save(org.mockito.ArgumentMatchers.argThat(member ->
+                member.getProject().getId().equals(1L)
+                        && member.getUser().equals(user)
+                        && member.getRole() == ProjectRole.OWNER));
     }
 
     @Test

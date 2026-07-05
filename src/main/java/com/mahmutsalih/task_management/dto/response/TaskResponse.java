@@ -4,6 +4,7 @@ import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,4 +29,5 @@ public class TaskResponse {
     private Long assignedUserId;
     private String assignedUsername;
     private String assignedUserFullName;
+    private List<TaskAssigneeResponse> assignees;
 }

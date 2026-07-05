@@ -5,6 +5,7 @@ import com.mahmutsalih.task_management.enums.TaskStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,4 +32,6 @@ public class TaskRequest {
     private Long projectId;
 
     private Long assignedUserId;
+
+    private List<@NotNull(message = "Assignee id cannot be null") Long> assigneeIds;
 }

@@ -3,14 +3,18 @@ package com.mahmutsalih.task_management.service.impl;
 import com.mahmutsalih.task_management.dto.request.TaskRequest;
 import com.mahmutsalih.task_management.dto.request.TaskUpdateRequest;
 import com.mahmutsalih.task_management.dto.response.TaskResponse;
+import com.mahmutsalih.task_management.dto.response.TaskAssigneeResponse;
 import com.mahmutsalih.task_management.entity.Project;
 import com.mahmutsalih.task_management.entity.Task;
+import com.mahmutsalih.task_management.entity.TaskAssignment;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
+import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
+import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
@@ -21,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -32,6 +37,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -54,15 +60,19 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final TaskAssignmentRepository taskAssignmentRepository;
     private final CurrentUserService currentUserService;
 
     @Override
+    @Transactional
     public TaskResponse create(TaskRequest request) {
         Project project = findProject(request.getProjectId());
         currentUserService.validateProjectAccess(project);
         validateTaskDeadlineWithinProject(project, request.getDueDate());
         User currentUser = currentUserService.getCurrentUser();
         boolean admin = currentUserService.isAdmin(currentUser);
+        List<User> assignees = resolveAssigneesForCreate(request, currentUser, admin);
 
         Task task = Task.builder()
                 .title(request.getTitle())
@@ -71,16 +81,20 @@ public class TaskServiceImpl implements TaskService {
                 .priority(request.getPriority() != null ? request.getPriority() : TaskPriority.MEDIUM)
                 .dueDate(request.getDueDate())
                 .project(project)
-                .assignedUser(resolveAssigneeForCreate(request.getAssignedUserId(), currentUser, admin))
+                .assignedUser(assignees.isEmpty() ? null : assignees.get(0))
                 .build();
 
         Task savedTask = taskRepository.save(task);
+        assignees.forEach(user -> taskAssignmentRepository.save(TaskAssignment.builder()
+                .task(savedTask)
+                .user(user)
+                .build()));
         logger.info(
-                "Task created. taskId={}, assignedUserId={}",
+                "Task created. taskId={}, assigneeCount={}",
                 savedTask.getId(),
-                getUserId(savedTask.getAssignedUser())
+                assignees.size()
         );
-        return toResponse(savedTask);
+        return toResponse(savedTask, assignees);
     }
 
     @Override
@@ -120,6 +134,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional
     public TaskResponse update(Long id, TaskUpdateRequest request) {
         Task task = findTask(id);
         validateTaskAccess(task);
@@ -142,6 +157,9 @@ public class TaskServiceImpl implements TaskService {
         task.setUpdatedAt(LocalDateTime.now());
 
         Task savedTask = taskRepository.save(task);
+        if (!java.util.Objects.equals(oldAssignedUserId, getUserId(savedTask.getAssignedUser()))) {
+            synchronizeLegacyAssignment(savedTask);
+        }
         logger.info("Task updated. taskId={}", savedTask.getId());
         logStatusChange(savedTask.getId(), oldStatus, savedTask.getStatus());
         logAssignmentChange(savedTask.getId(), oldAssignedUserId, getUserId(savedTask.getAssignedUser()));
@@ -169,6 +187,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional
     public TaskResponse assignToUser(Long id, Long userId) {
         Task task = findTask(id);
         validateTaskAccess(task);
@@ -178,11 +197,24 @@ public class TaskServiceImpl implements TaskService {
             throw new AccessDeniedException(ASSIGNEE_CHANGE_DENIED_MESSAGE);
         }
         Long oldAssignedUserId = getUserId(task.getAssignedUser());
-        task.setAssignedUser(findUser(userId));
+        User assignee = findUser(userId);
+        validateProjectMember(task.getProject().getId(), assignee);
+        task.setAssignedUser(assignee);
         task.setUpdatedAt(LocalDateTime.now());
         Task savedTask = taskRepository.save(task);
+        synchronizeLegacyAssignment(savedTask);
         logAssignmentChange(savedTask.getId(), oldAssignedUserId, getUserId(savedTask.getAssignedUser()));
         return toResponse(savedTask);
+    }
+
+    private void synchronizeLegacyAssignment(Task task) {
+        taskAssignmentRepository.deleteByTaskId(task.getId());
+        if (task.getAssignedUser() != null) {
+            taskAssignmentRepository.save(TaskAssignment.builder()
+                    .task(task)
+                    .user(task.getAssignedUser())
+                    .build());
+        }
     }
 
     private Task findTask(Long id) {
@@ -220,6 +252,30 @@ public class TaskServiceImpl implements TaskService {
         logger.warn("User attempted to assign task to another user. userId={}, requestedAssigneeId={}",
                 currentUser.getId(), requestedAssigneeId);
         throw new AccessDeniedException(SELF_ASSIGN_ONLY_MESSAGE);
+    }
+
+    private List<User> resolveAssigneesForCreate(TaskRequest request, User currentUser, boolean admin) {
+        List<Long> requestedIds = request.getAssigneeIds();
+        if (requestedIds == null) {
+            User legacyAssignee = resolveAssigneeForCreate(request.getAssignedUserId(), currentUser, admin);
+            if (legacyAssignee == null) {
+                return List.of();
+            }
+            validateProjectMember(request.getProjectId(), legacyAssignee);
+            return List.of(legacyAssignee);
+        }
+
+        List<User> assignees = new LinkedHashSet<>(requestedIds).stream()
+                .map(this::findUser)
+                .toList();
+        assignees.forEach(user -> validateProjectMember(request.getProjectId(), user));
+        return assignees;
+    }
+
+    private void validateProjectMember(Long projectId, User user) {
+        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, user.getId())) {
+            throw new BadRequestException("User is not a member of this project");
+        }
     }
 
     private void applyAssigneeForUpdate(Task task, Long requestedAssigneeId, boolean admin) {
@@ -302,7 +358,9 @@ public class TaskServiceImpl implements TaskService {
         }
 
         User currentUser = currentUserService.getCurrentUser();
-        if (isProjectOwner(task.getProject(), currentUser) || isSameUser(task.getAssignedUser(), currentUser.getId())) {
+        if (isProjectOwner(task.getProject(), currentUser)
+                || isSameUser(task.getAssignedUser(), currentUser.getId())
+                || taskAssignmentRepository.existsByTaskIdAndUserId(task.getId(), currentUser.getId())) {
             return;
         }
 
@@ -369,7 +427,20 @@ public class TaskServiceImpl implements TaskService {
         );
     }
 
+    @Transactional(readOnly = true)
     private TaskResponse toResponse(Task task) {
+        List<User> assignees = task.getId() == null
+                ? List.of()
+                : taskAssignmentRepository.findByTaskId(task.getId()).stream()
+                        .map(TaskAssignment::getUser)
+                        .toList();
+        if (assignees.isEmpty() && task.getAssignedUser() != null) {
+            assignees = List.of(task.getAssignedUser());
+        }
+        return toResponse(task, assignees);
+    }
+
+    private TaskResponse toResponse(Task task, List<User> assignees) {
         Project project = task.getProject();
         User assignedUser = task.getAssignedUser();
 
@@ -387,6 +458,13 @@ public class TaskServiceImpl implements TaskService {
                 .assignedUserId(assignedUser != null ? assignedUser.getId() : null)
                 .assignedUsername(assignedUser != null ? assignedUser.getEmail() : null)
                 .assignedUserFullName(assignedUser != null ? getFullName(assignedUser) : null)
+                .assignees(assignees.stream()
+                        .map(user -> TaskAssigneeResponse.builder()
+                                .userId(user.getId())
+                                .name(getFullName(user))
+                                .email(user.getEmail())
+                                .build())
+                        .toList())
                 .build();
     }
 

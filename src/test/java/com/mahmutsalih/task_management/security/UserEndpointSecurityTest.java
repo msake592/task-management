@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @WebMvcTest({UserController.class, AuthController.class})
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class})
@@ -78,6 +81,15 @@ class UserEndpointSecurityTest {
                         .content(USER_JSON))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.roleName").value("ADMIN"));
+    }
+
+    @Test
+    void getUserOptions_withUserRole_shouldReturnOk() throws Exception {
+        when(userService.getAll(any(Pageable.class))).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/users/options")
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isOk());
     }
 
     @Test

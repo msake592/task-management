@@ -1,9 +1,12 @@
 package com.mahmutsalih.task_management.controller;
 
+import com.mahmutsalih.task_management.dto.request.AddProjectMemberRequest;
 import com.mahmutsalih.task_management.dto.request.ProjectRequest;
+import com.mahmutsalih.task_management.dto.response.ProjectMemberResponse;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.service.ProjectService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,5 +52,18 @@ public class ProjectController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         projectService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{projectId}/members")
+    public ResponseEntity<ProjectMemberResponse> addMember(
+            @PathVariable Long projectId,
+            @Valid @RequestBody AddProjectMemberRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(projectService.addMember(projectId, request));
+    }
+
+    @GetMapping("/{projectId}/members")
+    public ResponseEntity<List<ProjectMemberResponse>> getMembers(@PathVariable Long projectId) {
+        return ResponseEntity.ok(projectService.getMembers(projectId));
     }
 }

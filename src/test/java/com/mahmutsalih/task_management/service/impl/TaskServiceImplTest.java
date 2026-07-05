@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +22,9 @@ import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
+import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
+import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
@@ -35,6 +38,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -59,10 +63,26 @@ class TaskServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
+    @Mock
+    private TaskAssignmentRepository taskAssignmentRepository;
+
+    @Mock
     private CurrentUserService currentUserService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
+
+    @BeforeEach
+    void setUpAssignmentRepositories() {
+        org.mockito.Mockito.lenient()
+                .when(projectMemberRepository.existsByProjectIdAndUserId(anyLong(), anyLong()))
+                .thenReturn(true);
+        org.mockito.Mockito.lenient()
+                .when(taskAssignmentRepository.findByTaskId(anyLong()))
+                .thenReturn(List.of());
+    }
 
     @Test
     void create_whenAdminAssignsAnotherUser_shouldCreateTask() {
@@ -128,6 +148,56 @@ class TaskServiceImplTest {
         assertThat(response.getAssignedUserId()).isNull();
         assertThat(response.getAssignedUsername()).isNull();
         verify(userRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void create_withMultipleProjectMembers_shouldCreateAllAssignments() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User firstUser = regularUser(2L, "first@example.com");
+        User secondUser = regularUser(3L, "second@example.com");
+        TaskRequest request = TaskRequest.builder()
+                .title("Shared task")
+                .projectId(1L)
+                .assigneeIds(List.of(2L, 3L))
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(adminUser());
+        when(currentUserService.isAdmin(any(User.class))).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(firstUser));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(secondUser));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(3L);
+            return task;
+        });
+
+        TaskResponse response = taskService.create(request);
+
+        assertThat(response.getAssignees()).extracting("userId").containsExactly(2L, 3L);
+        verify(taskAssignmentRepository, times(2)).save(any());
+    }
+
+    @Test
+    void create_whenAssigneeIsNotProjectMember_shouldRejectTask() {
+        Project project = Project.builder().id(1L).name("Project").build();
+        User user = regularUser(2L, "user@example.com");
+        TaskRequest request = TaskRequest.builder()
+                .title("Invalid assignment")
+                .projectId(1L)
+                .assigneeIds(List.of(2L))
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.getCurrentUser()).thenReturn(adminUser());
+        when(currentUserService.isAdmin(any(User.class))).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(projectMemberRepository.existsByProjectIdAndUserId(1L, 2L)).thenReturn(false);
+
+        assertThatThrownBy(() -> taskService.create(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("User is not a member of this project");
+        verify(taskRepository, never()).save(any());
     }
 
     @Test
