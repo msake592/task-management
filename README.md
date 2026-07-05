@@ -17,6 +17,7 @@ Task Management System is a full-stack task management application built with Sp
 - React with Vite
 - Axios
 - Docker and Docker Compose
+- MinIO object storage
 - Swagger/OpenAPI with springdoc-openapi
 
 ## Main Features
@@ -36,6 +37,7 @@ Task Management System is a full-stack task management application built with Sp
   - List comments for a task.
   - Add a new comment to a task.
   - Comment content is validated and limited to 1000 characters.
+- Task attachments stored in MinIO with metadata persisted in PostgreSQL.
 - PostgreSQL data persistence through a Docker volume.
 
 ## Configuration
@@ -67,7 +69,7 @@ Do not commit real secrets. Use `.env.example` as a template.
 
 ## Run With Docker
 
-This starts PostgreSQL, the Spring Boot backend, and the React/Vite frontend with one command.
+This starts PostgreSQL, MinIO, the Spring Boot backend, and the React/Vite frontend with one command.
 
 ```bash
 cp .env.example .env
@@ -81,6 +83,8 @@ Services run at:
 Frontend: http://localhost:5173
 Backend API: http://localhost:8080
 PostgreSQL: localhost:5433
+MinIO API: http://localhost:9000
+MinIO Console: http://localhost:9001
 ```
 
 Swagger UI:
@@ -101,22 +105,25 @@ Stop the containers:
 docker compose down
 ```
 
-Stop the containers and delete the PostgreSQL data volume:
+Stop the containers and delete the PostgreSQL and MinIO data volumes:
 
 ```bash
 docker compose down -v
 ```
 
-`docker compose down` keeps database data. `docker compose down -v` deletes the named PostgreSQL volume and removes the database data.
+`docker compose down` keeps database and attachment data. `docker compose down -v` deletes the named
+PostgreSQL and MinIO volumes and removes their persisted data.
 
 ## Docker Services
 
 `docker-compose.yml` defines:
 
 - `db`: PostgreSQL 16, mapped from host port `5433` to container port `5432`.
+- `minio`: MinIO object storage, with API port `9000` and console port `9001`.
 - `backend`: Spring Boot app built from `backend/Dockerfile`, mapped to host port `8080`.
 - `frontend`: React/Vite app built from `frontend/Dockerfile`, served through port `5173`.
 - `postgres_data`: named Docker volume for persistent PostgreSQL data.
+- `minio-data`: named Docker volume for persistent attachment data.
 
 Inside Docker, the backend connects to PostgreSQL with:
 
@@ -138,10 +145,10 @@ BACKEND_PORT=18080 FRONTEND_PORT=15173 POSTGRES_PORT=15433 docker compose up --b
 
 ## Local Development
 
-Run only PostgreSQL in Docker:
+Run PostgreSQL and MinIO in Docker:
 
 ```bash
-docker compose up -d db
+docker compose up -d db minio
 ```
 
 Run the backend locally:
@@ -172,6 +179,28 @@ Run backend tests:
 ```bash
 ./mvnw test
 ```
+
+## MinIO Task Attachments
+
+For local backend development, start MinIO with:
+
+```bash
+docker compose up -d minio
+```
+
+MinIO connection details:
+
+| Setting | Value |
+| --- | --- |
+| API endpoint | `http://localhost:9000` |
+| Console | `http://localhost:9001` |
+| Username | `minioadmin` |
+| Password | `minioadmin` |
+| Bucket | `task-attachments` |
+
+The `task-attachments` bucket is created automatically on the first upload if it does not exist.
+Attachment files are stored in MinIO. PostgreSQL stores only attachment metadata such as the original
+file name, content type, size, object key, uploader, and related task.
 
 ## API Overview
 
@@ -232,6 +261,13 @@ Comment response example:
   "createdAt": "2026-06-22T01:34:00"
 }
 ```
+
+### Task Attachments
+
+- `POST /api/tasks/{taskId}/attachments` - Upload a multipart file using the `file` form field.
+- `GET /api/tasks/{taskId}/attachments` - List attachment metadata for a task.
+- `GET /api/tasks/{taskId}/attachments/{attachmentId}/download` - Download an attachment.
+- `DELETE /api/tasks/{taskId}/attachments/{attachmentId}` - Delete an attachment and its metadata.
 
 ## Task Listing: Pagination, Sorting, and Filtering
 
