@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { addComment, getCommentsByTask } from '../api/commentApi';
 import { deleteTask, getTaskById } from '../api/taskApi';
+import {
+  downloadTaskAttachment,
+  getTaskAttachments,
+  uploadTaskAttachment,
+} from '../api/taskAttachmentApi';
+import { getApiErrorMessage } from '../utils/apiError';
 
 function getAssignedUser(task) {
   return task?.assignedUsername
@@ -82,6 +88,22 @@ function formatDateTime(value) {
   return date.toLocaleString('tr-TR');
 }
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return 'Unknown size';
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function TaskDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -94,6 +116,13 @@ function TaskDetailPage() {
   const [commentsError, setCommentsError] = useState('');
   const [commentContent, setCommentContent] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [attachmentSuccess, setAttachmentSuccess] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState(null);
 
   useEffect(() => {
     const loadTask = async () => {
@@ -127,6 +156,23 @@ function TaskDetailPage() {
     };
 
     loadComments();
+  }, [id]);
+
+  useEffect(() => {
+    const loadAttachments = async () => {
+      try {
+        setAttachmentsLoading(true);
+        setAttachmentError('');
+        const data = await getTaskAttachments(id);
+        setAttachments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setAttachmentError(getApiErrorMessage(err, 'Attachments could not be loaded.'));
+      } finally {
+        setAttachmentsLoading(false);
+      }
+    };
+
+    loadAttachments();
   }, [id]);
 
   const handleCommentSubmit = async (event) => {
@@ -175,6 +221,52 @@ function TaskDetailPage() {
       setError('Task could not be deleted. Please check the backend response.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleAttachmentUpload = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (!selectedFile) {
+      setAttachmentError('Select a file to upload.');
+      return;
+    }
+
+    try {
+      setUploadingAttachment(true);
+      setAttachmentError('');
+      setAttachmentSuccess('');
+      const uploadedAttachment = await uploadTaskAttachment(id, selectedFile);
+      setAttachments((currentAttachments) => [uploadedAttachment, ...currentAttachments]);
+      setSelectedFile(null);
+      form.reset();
+      setAttachmentSuccess('Attachment uploaded successfully.');
+    } catch (err) {
+      setAttachmentError(getApiErrorMessage(err, 'Attachment could not be uploaded.'));
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleAttachmentDownload = async (attachment) => {
+    try {
+      setDownloadingAttachmentId(attachment.id);
+      setAttachmentError('');
+      setAttachmentSuccess('');
+      const blob = await downloadTaskAttachment(id, attachment.id);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = attachment.originalFileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setAttachmentError(getApiErrorMessage(err, 'Attachment could not be downloaded.'));
+    } finally {
+      setDownloadingAttachmentId(null);
     }
   };
 
@@ -256,6 +348,67 @@ function TaskDetailPage() {
         <div className="detail-item">
           <span>Updated at</span>
           <strong>{formatDateTime(task?.updatedAt)}</strong>
+        </div>
+      </div>
+
+      <div className="attachments-panel">
+        <div className="attachments-header">
+          <h2>Attachments</h2>
+          {attachmentsLoading && <span>Loading...</span>}
+        </div>
+
+        <form className="attachment-form" onSubmit={handleAttachmentUpload}>
+          <label className="form-field">
+            <span>File</span>
+            <input
+              type="file"
+              name="file"
+              onChange={(event) => {
+                setSelectedFile(event.target.files?.[0] || null);
+                setAttachmentError('');
+                setAttachmentSuccess('');
+              }}
+            />
+          </label>
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={uploadingAttachment || !selectedFile}
+          >
+            {uploadingAttachment ? 'Uploading...' : 'Upload Attachment'}
+          </button>
+        </form>
+
+        {attachmentSuccess && <p className="success-message">{attachmentSuccess}</p>}
+        {attachmentError && <p className="error-message">{attachmentError}</p>}
+
+        <div className="attachment-list">
+          {attachments.length === 0 && !attachmentsLoading ? (
+            <p className="empty-message">No attachments yet.</p>
+          ) : (
+            attachments.map((attachment) => (
+              <article className="attachment-item" key={attachment.id}>
+                <div>
+                  <strong>{attachment.originalFileName}</strong>
+                  <span>
+                    {formatFileSize(attachment.fileSize)}
+                    {' · '}
+                    {attachment.uploadedByUsername || 'Unknown user'}
+                    {' · '}
+                    {formatDateTime(attachment.uploadedAt)}
+                  </span>
+                </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => handleAttachmentDownload(attachment)}
+                  disabled={downloadingAttachmentId === attachment.id}
+                >
+                  {downloadingAttachmentId === attachment.id ? 'Downloading...' : 'Download'}
+                </button>
+              </article>
+            ))
+          )}
         </div>
       </div>
 

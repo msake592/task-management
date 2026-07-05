@@ -253,6 +253,10 @@ a {
   color: #b91c1c;
 }
 
+.success-message {
+  color: #166534;
+}
+
 .empty-message {
   color: #4b5563;
 }
@@ -465,6 +469,7 @@ a {
   overflow-wrap: anywhere;
 }
 
+.attachments-panel,
 .comments-panel {
   display: grid;
   gap: 16px;
@@ -475,6 +480,7 @@ a {
   border-radius: 8px;
 }
 
+.attachments-header,
 .comments-header {
   display: flex;
   align-items: center;
@@ -482,11 +488,13 @@ a {
   gap: 12px;
 }
 
+.attachments-header h2,
 .comments-header h2 {
   margin: 0;
   font-size: 22px;
 }
 
+.attachments-header span,
 .comments-header span,
 .comment-form-footer,
 .comment-meta span {
@@ -497,6 +505,47 @@ a {
 .comment-form {
   display: grid;
   gap: 10px;
+}
+
+.attachment-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.attachment-form .form-field {
+  flex: 1;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.attachment-item div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.attachment-item strong {
+  overflow-wrap: anywhere;
+}
+
+.attachment-item span {
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .comment-form-footer {
@@ -587,7 +636,9 @@ a {
   }
 
   .comment-form-footer,
-  .comment-meta {
+  .comment-meta,
+  .attachment-form,
+  .attachment-item {
     align-items: flex-start;
     flex-direction: column;
   }

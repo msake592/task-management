@@ -208,6 +208,30 @@ starts.
 Attachment files are stored in MinIO. PostgreSQL stores only attachment metadata such as the original
 file name, content type, size, object key, uploader, and related task.
 
+Authenticated task attachment endpoints:
+
+| Method | Path | Request | Response |
+| --- | --- | --- | --- |
+| `POST` | `/api/tasks/{taskId}/attachments` | `multipart/form-data` with a `file` part | `201` and attachment metadata |
+| `GET` | `/api/tasks/{taskId}/attachments` | None | `200` and an array of attachment metadata |
+| `GET` | `/api/tasks/{taskId}/attachments/{attachmentId}/download` | None | `200` and the file body with `Content-Disposition: attachment` |
+| `DELETE` | `/api/tasks/{taskId}/attachments/{attachmentId}` | None | `204` |
+
+Attachment metadata has the shape:
+
+```json
+{
+  "id": 10,
+  "originalFileName": "report.pdf",
+  "contentType": "application/pdf",
+  "fileSize": 1024,
+  "uploadedAt": "2026-07-06T12:00:00",
+  "uploadedById": 2,
+  "uploadedByUsername": "user@example.com",
+  "taskId": 1
+}
+```
+
 ## API Overview
 
 ### Authentication
