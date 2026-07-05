@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class MinioFileStorageServiceTest {
 
     private static final String BUCKET_NAME = "task-attachments";
+    private static final String ENDPOINT = "http://localhost:9000";
 
     @Mock
     private MinioClient minioClient;
@@ -28,7 +29,7 @@ class MinioFileStorageServiceTest {
 
     @BeforeEach
     void setUp() {
-        storageService = new MinioFileStorageService(minioClient, BUCKET_NAME);
+        storageService = new MinioFileStorageService(minioClient, ENDPOINT, BUCKET_NAME);
     }
 
     @Test
@@ -56,7 +57,10 @@ class MinioFileStorageServiceTest {
 
         assertThatThrownBy(storageService::initializeBucket)
                 .isInstanceOf(FileStorageException.class)
-                .hasMessage("Failed to initialize MinIO bucket 'task-attachments'")
+                .hasMessage(
+                        "Failed to initialize MinIO bucket 'task-attachments' "
+                                + "using endpoint 'http://localhost:9000'"
+                )
                 .hasCause(cause);
     }
 

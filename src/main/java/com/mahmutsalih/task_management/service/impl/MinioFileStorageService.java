@@ -25,18 +25,23 @@ public class MinioFileStorageService implements FileStorageService {
     private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
 
     private final MinioClient minioClient;
+    private final String endpoint;
     private final String bucketName;
 
     public MinioFileStorageService(
             MinioClient minioClient,
+            @Value("${minio.endpoint}") String endpoint,
             @Value("${minio.bucket-name}") String bucketName
     ) {
         this.minioClient = minioClient;
+        this.endpoint = endpoint;
         this.bucketName = bucketName;
     }
 
     @PostConstruct
     void initializeBucket() {
+        log.info("Initializing MinIO storage with endpoint '{}'", endpoint);
+        log.info("Configured MinIO bucket is '{}'", bucketName);
         log.info("Checking whether MinIO bucket '{}' exists", bucketName);
         try {
             boolean exists = minioClient.bucketExists(BucketExistsArgs.builder()
@@ -52,9 +57,15 @@ public class MinioFileStorageService implements FileStorageService {
                     .build());
             log.info("MinIO bucket '{}' created successfully", bucketName);
         } catch (Exception exception) {
-            log.error("Failed to initialize MinIO bucket '{}'", bucketName, exception);
+            log.error(
+                    "Failed to initialize MinIO bucket '{}' using endpoint '{}'",
+                    bucketName,
+                    endpoint,
+                    exception
+            );
             throw new FileStorageException(
-                    "Failed to initialize MinIO bucket '" + bucketName + "'",
+                    "Failed to initialize MinIO bucket '" + bucketName
+                            + "' using endpoint '" + endpoint + "'",
                     exception
             );
         }

@@ -198,7 +198,13 @@ MinIO connection details:
 | Password | `minioadmin` |
 | Bucket | `task-attachments` |
 
-The `task-attachments` bucket is created automatically on the first upload if it does not exist.
+When Spring Boot runs locally, it connects to the MinIO API at `http://localhost:9000` by default.
+The hostname `minio` (for example, `http://minio:9000`) is only resolvable from containers on the
+Docker Compose network. The MinIO console is available from the host at `http://localhost:9001`.
+Set `MINIO_ENDPOINT` to override the API endpoint for another runtime environment.
+
+The `task-attachments` bucket is checked and created automatically when the Spring Boot application
+starts.
 Attachment files are stored in MinIO. PostgreSQL stores only attachment metadata such as the original
 file name, content type, size, object key, uploader, and related task.
 
