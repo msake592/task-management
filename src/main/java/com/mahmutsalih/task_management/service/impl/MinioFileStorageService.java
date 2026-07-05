@@ -9,26 +9,56 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class MinioFileStorageService implements FileStorageService {
 
     private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
 
     private final MinioClient minioClient;
+    private final String bucketName;
 
-    @Value("${minio.bucket-name}")
-    private String bucketName;
+    public MinioFileStorageService(
+            MinioClient minioClient,
+            @Value("${minio.bucket-name}") String bucketName
+    ) {
+        this.minioClient = minioClient;
+        this.bucketName = bucketName;
+    }
 
-    private volatile boolean bucketReady;
+    @PostConstruct
+    void initializeBucket() {
+        log.info("Checking whether MinIO bucket '{}' exists", bucketName);
+        try {
+            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder()
+                    .bucket(bucketName)
+                    .build());
+            if (exists) {
+                log.info("MinIO bucket '{}' already exists", bucketName);
+                return;
+            }
+
+            minioClient.makeBucket(MakeBucketArgs.builder()
+                    .bucket(bucketName)
+                    .build());
+            log.info("MinIO bucket '{}' created successfully", bucketName);
+        } catch (Exception exception) {
+            log.error("Failed to initialize MinIO bucket '{}'", bucketName, exception);
+            throw new FileStorageException(
+                    "Failed to initialize MinIO bucket '" + bucketName + "'",
+                    exception
+            );
+        }
+    }
 
     @Override
     public FileStorageResult upload(MultipartFile file, Long taskId) {
@@ -47,7 +77,6 @@ public class MinioFileStorageService implements FileStorageService {
                 : DEFAULT_CONTENT_TYPE;
 
         try {
-            ensureBucketExists();
             try (InputStream inputStream = file.getInputStream()) {
                 minioClient.putObject(PutObjectArgs.builder()
                         .bucket(bucketName)
@@ -94,31 +123,6 @@ public class MinioFileStorageService implements FileStorageService {
                     .build());
         } catch (Exception exception) {
             throw new FileStorageException("File could not be deleted", exception);
-        }
-    }
-
-    private void ensureBucketExists() {
-        if (bucketReady) {
-            return;
-        }
-
-        synchronized (this) {
-            if (bucketReady) {
-                return;
-            }
-            try {
-                boolean exists = minioClient.bucketExists(BucketExistsArgs.builder()
-                        .bucket(bucketName)
-                        .build());
-                if (!exists) {
-                    minioClient.makeBucket(MakeBucketArgs.builder()
-                            .bucket(bucketName)
-                            .build());
-                }
-                bucketReady = true;
-            } catch (Exception exception) {
-                throw new FileStorageException("MinIO bucket could not be initialized", exception);
-            }
         }
     }
 
