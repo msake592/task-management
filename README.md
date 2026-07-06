@@ -18,7 +18,7 @@ Task Management System is a full-stack task management application built with Sp
 - Axios
 - Docker and Docker Compose
 - Swagger/OpenAPI with springdoc-openapi
-
+- MinIO (Object Storage)
 ## Main Features
 
 - User registration and login with JWT authentication.
@@ -37,6 +37,8 @@ Task Management System is a full-stack task management application built with Sp
   - Add a new comment to a task.
   - Comment content is validated and limited to 1000 characters.
 - PostgreSQL data persistence through a Docker volume.
+- Assign users to projects during project creation and update.
+- File attachment support backed by MinIO object storage.
 
 ## Configuration
 
@@ -56,7 +58,10 @@ The application reads database, JWT, Docker port, and frontend API settings from
 | `BACKEND_PORT` | `8080` |
 | `FRONTEND_PORT` | `5173` |
 | `VITE_API_BASE_URL` | `http://localhost:8080` |
-
+| `MINIO_ENDPOINT` | `http://localhost:9000` |
+| `MINIO_ACCESS_KEY` | `minioadmin` |
+| `MINIO_SECRET_KEY` | `minioadmin` |
+| `MINIO_BUCKET` | `task-management` |
 Generate a local JWT secret with:
 
 ```bash
@@ -94,7 +99,10 @@ OpenAPI JSON:
 ```text
 http://localhost:8080/v3/api-docs
 ```
-
+```text
+MinIO API: http://localhost:9000
+MinIO Console: http://localhost:9001
+```
 Stop the containers:
 
 ```bash
@@ -117,6 +125,7 @@ docker compose down -v
 - `backend`: Spring Boot app built from `backend/Dockerfile`, mapped to host port `8080`.
 - `frontend`: React/Vite app built from `frontend/Dockerfile`, served through port `5173`.
 - `postgres_data`: named Docker volume for persistent PostgreSQL data.
+- `minio`: MinIO object storage exposed on ports `9000` (API) and `9001` (Console).
 
 Inside Docker, the backend connects to PostgreSQL with:
 
@@ -141,7 +150,7 @@ BACKEND_PORT=18080 FRONTEND_PORT=15173 POSTGRES_PORT=15433 docker compose up --b
 Run only PostgreSQL in Docker:
 
 ```bash
-docker compose up -d db
+docker compose up -d db minio
 ```
 
 Run the backend locally:
@@ -190,7 +199,7 @@ Run backend tests:
 
 ### Projects
 
-- `POST /api/projects` - Create a project.
+- `POST /api/projects - Create a project and optionally assign users.
 - `GET /api/projects?page=0&size=10&sort=createdAt,desc` - List projects with pagination and sorting.
 - `GET /api/projects/{id}` - Get a project by id.
 - `PUT /api/projects/{id}` - Update a project.
@@ -232,7 +241,17 @@ Comment response example:
   "createdAt": "2026-06-22T01:34:00"
 }
 ```
+## File Storage
 
+The application stores uploaded files in MinIO object storage.
+
+Uploaded files are managed through the backend and stored in the configured bucket.
+
+Default local endpoints:
+
+```text
+API: http://localhost:9000
+Console: http://localhost:9001
 ## Task Listing: Pagination, Sorting, and Filtering
 
 The task list endpoint supports these query parameters:
@@ -268,7 +287,13 @@ The response is a Spring `Page<TaskResponse>` response. The most useful fields a
 ```text
 content, number, size, totalElements, totalPages, last
 ```
+## Project Response Notes
 
+Project responses include:
+
+- `assigned users`
+- `createdAt`
+- `updatedAt`
 ## Task Response Notes
 
 Task responses include:
