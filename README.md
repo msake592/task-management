@@ -22,9 +22,11 @@ Task Management System is a full-stack task management application built with Sp
 
 ## Main Features
 
-- User registration and login with JWT authentication.
+- Public user registration and login with JWT authentication.
+- Admin-only user management, including creating users with an assigned role.
 - Role-based access behavior for `ADMIN` and `USER`.
 - Project CRUD.
+- Project membership management.
 - Task CRUD with status updates and assignee support.
 - Role-restricted task assignment:
   - `ADMIN` can assign tasks to any user or leave tasks unassigned.
@@ -37,12 +39,16 @@ Task Management System is a full-stack task management application built with Sp
   - List comments for a task.
   - Add a new comment to a task.
   - Comment content is validated and limited to 1000 characters.
-- Task attachments stored in MinIO with metadata persisted in PostgreSQL.
+- Task attachments:
+  - Upload files from the task detail page.
+  - List and download existing task attachments.
+  - Store file content in MinIO and persist metadata in PostgreSQL.
+  - Create the configured MinIO bucket automatically during backend startup.
 - PostgreSQL data persistence through a Docker volume.
 
 ## Configuration
 
-The application reads database, JWT, Docker port, and frontend API settings from environment variables.
+The application reads database, JWT, MinIO, Docker port, and frontend API settings from environment variables.
 
 | Variable | Default |
 | --- | --- |
@@ -55,6 +61,12 @@ The application reads database, JWT, Docker port, and frontend API settings from
 | `SPRING_DATASOURCE_PASSWORD` | `postgres` |
 | `JWT_SECRET` | required |
 | `JWT_EXPIRATION` | `86400000` |
+| `MINIO_ENDPOINT` | `http://localhost:9000` locally; `http://minio:9000` in Docker |
+| `MINIO_ACCESS_KEY` | `minioadmin` |
+| `MINIO_SECRET_KEY` | `minioadmin` |
+| `MINIO_BUCKET_NAME` | `task-attachments` |
+| `MINIO_ROOT_USER` | `minioadmin` |
+| `MINIO_ROOT_PASSWORD` | `minioadmin` |
 | `BACKEND_PORT` | `8080` |
 | `FRONTEND_PORT` | `5173` |
 | `VITE_API_BASE_URL` | `http://localhost:8080` |
@@ -131,6 +143,12 @@ Inside Docker, the backend connects to PostgreSQL with:
 jdbc:postgresql://db:5432/task_management_db
 ```
 
+Inside the Docker Compose network, the backend connects to MinIO with:
+
+```text
+http://minio:9000
+```
+
 The Docker frontend is built with:
 
 ```text
@@ -158,6 +176,8 @@ export JWT_SECRET="<generated-secret>"
 export JWT_EXPIRATION=86400000
 ./mvnw spring-boot:run
 ```
+
+The local backend uses `http://localhost:9000` for MinIO unless `MINIO_ENDPOINT` is overridden.
 
 Run the frontend locally:
 
@@ -208,6 +228,9 @@ starts.
 Attachment files are stored in MinIO. PostgreSQL stores only attachment metadata such as the original
 file name, content type, size, object key, uploader, and related task.
 
+Uploads are limited to 10 MB. Supported content types are PDF, PNG, JPEG, plain text, and DOCX.
+The frontend sends files to the authenticated backend API; it never connects to MinIO directly.
+
 Authenticated task attachment endpoints:
 
 | Method | Path | Request | Response |
@@ -236,16 +259,20 @@ Attachment metadata has the shape:
 
 ### Authentication
 
-- `POST /api/auth/register` - Register a user.
+- `POST /api/auth/register` - Public self-registration. The backend always assigns the `USER` role.
 - `POST /api/auth/login` - Login and receive a JWT.
 
 ### Users
 
-- `POST /api/users` - Create a user.
-- `GET /api/users?page=0&size=10&sort=id,desc` - List users with pagination and sorting.
-- `GET /api/users/{id}` - Get a user by id.
-- `PUT /api/users/{id}` - Update a user.
-- `DELETE /api/users/{id}` - Delete a user.
+- `POST /api/users` - Create a user with an assigned role (`ADMIN` only).
+- `GET /api/users?page=0&size=10&sort=id,desc` - List users with pagination and sorting (`ADMIN` only).
+- `GET /api/users/options` - List user options for authenticated `USER` and `ADMIN` accounts.
+- `GET /api/users/{id}` - Get a user by id (`ADMIN` only).
+- `PUT /api/users/{id}` - Update a user and role (`ADMIN` only).
+- `DELETE /api/users/{id}` - Delete a user (`ADMIN` only).
+
+The public registration endpoint does not accept `roleId`. Role selection is available only through
+the admin-protected user management endpoint.
 
 ### Projects
 
@@ -254,6 +281,8 @@ Attachment metadata has the shape:
 - `GET /api/projects/{id}` - Get a project by id.
 - `PUT /api/projects/{id}` - Update a project.
 - `DELETE /api/projects/{id}` - Delete a project.
+- `POST /api/projects/{projectId}/members` - Add a member to a project.
+- `GET /api/projects/{projectId}/members` - List project members.
 
 ### Tasks
 
@@ -356,6 +385,8 @@ The React/Vite frontend includes:
 - Task list sorting by created date, updated date, due date, priority, status, and title.
 - Task list pagination with previous and next controls.
 - Task detail page with comments, created date, updated date, and assigned user.
+- Task detail attachment panel for selecting, uploading, listing, and downloading files.
+- Attachment requests use the authenticated backend API without exposing MinIO to the browser.
 - Task create/edit screens that respect role-based assignment behavior.
 
 The frontend sends API requests to:
