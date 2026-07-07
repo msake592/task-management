@@ -16,7 +16,8 @@ export function decodeJwtPayload(token) {
 
 function containsAdminRole(value) {
   if (typeof value === 'string') {
-    return value === 'ADMIN' || value === 'ROLE_ADMIN';
+    const normalizedRole = value.toUpperCase();
+    return normalizedRole === 'ADMIN' || normalizedRole === 'ROLE_ADMIN';
   }
 
   if (Array.isArray(value)) {
@@ -53,6 +54,7 @@ export function getCurrentUserInfo() {
   const role = tokenPayload?.role || '';
 
   return {
+    id: tokenPayload?.userId || tokenPayload?.id || '',
     username: tokenPayload?.sub || tokenPayload?.email || '',
     role,
     displayRole: role.replace(/^ROLE_/, '') || 'USER',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { getCurrentUserInfo } from '../utils/authToken';
+import { getCurrentUserInfo, isCurrentUserAdmin } from '../utils/authToken';
 
 function getAuthState() {
   const hasToken = Boolean(localStorage.getItem('token'));
@@ -16,6 +16,7 @@ function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasToken, currentUser } = authState;
+  const isAdmin = hasToken && isCurrentUserAdmin();
 
   useEffect(() => {
     const syncAuthState = () => {
@@ -54,6 +55,11 @@ function Navbar() {
         <NavLink to="/tasks/new" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
           Create Task
         </NavLink>
+        {isAdmin && (
+          <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            User Management
+          </NavLink>
+        )}
       </div>
       <div className="navbar-session">
         {hasToken ? (

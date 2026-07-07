@@ -1,5 +1,6 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import HomePage from '../pages/HomePage.jsx';
+import AdminUsersPage from '../pages/AdminUsersPage.jsx';
 import CreateTaskPage from '../pages/CreateTaskPage.jsx';
 import CreateProjectPage from '../pages/CreateProjectPage.jsx';
 import EditTaskPage from '../pages/EditTaskPage.jsx';
@@ -8,6 +9,11 @@ import ProjectListPage from '../pages/ProjectListPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
 import TaskDetailPage from '../pages/TaskDetailPage.jsx';
 import TaskListPage from '../pages/TaskListPage.jsx';
+import { isCurrentUserAdmin } from '../utils/authToken';
+
+function AdminRoute({ children }) {
+  return isCurrentUserAdmin() ? children : <Navigate to="/tasks" replace />;
+}
 
 function AppRoutes() {
   return (
@@ -21,6 +27,22 @@ function AppRoutes() {
       <Route path="/tasks/new" element={<CreateTaskPage />} />
       <Route path="/tasks/:id/edit" element={<EditTaskPage />} />
       <Route path="/tasks/:id" element={<TaskDetailPage />} />
+      <Route
+        path="/admin/users"
+        element={(
+          <AdminRoute>
+            <AdminUsersPage />
+          </AdminRoute>
+        )}
+      />
+      <Route
+        path="/users"
+        element={(
+          <AdminRoute>
+            <AdminUsersPage />
+          </AdminRoute>
+        )}
+      />
     </Routes>
   );
 }
