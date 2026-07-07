@@ -307,7 +307,7 @@ the admin-protected user management endpoint.
 ### Comments
 
 - `GET /api/tasks/{taskId}/comments` - List comments for a task.
-- `POST /api/tasks/{taskId}/comments?userId={userId}` - Add a comment to a task.
+- `POST /api/tasks/{taskId}/comments` - Add a comment to a task as the authenticated user.
 
 Comment request body:
 

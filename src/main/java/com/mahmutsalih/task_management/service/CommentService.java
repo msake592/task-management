@@ -7,7 +7,7 @@ import com.mahmutsalih.task_management.dto.response.CommentResponse;
 
 public interface CommentService {
 
-    CommentResponse addComment(Long taskId, Long userId, CreateCommentRequest request);
+    CommentResponse addComment(Long taskId, CreateCommentRequest request);
 
     List<CommentResponse> getCommentsByTask(Long taskId);
 }

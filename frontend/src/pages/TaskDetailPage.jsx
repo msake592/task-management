@@ -17,49 +17,6 @@ function getAssignedUser(task) {
     || 'Not assigned';
 }
 
-function readJsonStorage(key) {
-  try {
-    const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function decodeJwtPayload(token) {
-  try {
-    const payload = token.split('.')[1];
-
-    if (!payload) {
-      return null;
-    }
-
-    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decodedPayload = window.atob(normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '='));
-    return JSON.parse(decodedPayload);
-  } catch (error) {
-    return null;
-  }
-}
-
-function getCurrentUserId() {
-  const directUserId = localStorage.getItem('userId');
-
-  if (directUserId) {
-    return directUserId;
-  }
-
-  const currentUser = readJsonStorage('currentUser') || readJsonStorage('user') || readJsonStorage('authUser');
-  const storedUserId = currentUser?.id || currentUser?.userId || currentUser?.data?.id || currentUser?.data?.userId;
-
-  if (storedUserId) {
-    return storedUserId;
-  }
-
-  const tokenPayload = decodeJwtPayload(localStorage.getItem('token') || '');
-  return tokenPayload?.userId || tokenPayload?.id || '';
-}
-
 function formatCommentDate(value) {
   if (!value) {
     return 'Not available';
@@ -185,17 +142,10 @@ function TaskDetailPage() {
       return;
     }
 
-    const userId = getCurrentUserId();
-
-    if (!userId) {
-      setCommentsError('User information not found.');
-      return;
-    }
-
     try {
       setCommentSubmitting(true);
       setCommentsError('');
-      const newComment = await addComment(id, userId, trimmedContent);
+      const newComment = await addComment(id, trimmedContent);
       setComments((currentComments) => [newComment, ...currentComments]);
       setCommentContent('');
     } catch (err) {

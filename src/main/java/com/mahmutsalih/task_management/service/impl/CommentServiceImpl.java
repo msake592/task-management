@@ -13,6 +13,9 @@ import com.mahmutsalih.task_management.service.CommentService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,18 +28,18 @@ public class CommentServiceImpl implements CommentService {
     private final UserRepository userRepository;
 
     @Override
-    public CommentResponse addComment(Long taskId, Long userId, CreateCommentRequest request) {
+    public CommentResponse addComment(Long taskId, CreateCommentRequest request) {
         Task task = findTask(taskId);
-        User user = findUser(userId);
+        User currentUser = getCurrentUser();
 
         Comment comment = Comment.builder()
                 .content(request.getContent())
                 .task(task)
-                .user(user)
                 .build();
+        comment.setUser(currentUser);
 
         Comment savedComment = commentRepository.save(comment);
-        log.info("Comment added. commentId={}, taskId={}, userId={}", savedComment.getId(), taskId, userId);
+        log.info("Comment added. commentId={}, taskId={}, userId={}", savedComment.getId(), taskId, currentUser.getId());
         return toResponse(savedComment);
     }
 
@@ -55,9 +58,14 @@ public class CommentServiceImpl implements CommentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
     }
 
-    private User findUser(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("You do not have permission to access this resource");
+        }
+
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new AccessDeniedException("You do not have permission to access this resource"));
     }
 
     private CommentResponse toResponse(Comment comment) {

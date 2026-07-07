@@ -7,13 +7,7 @@ export const getCommentsByTask = async (taskId) => {
   return response.data;
 };
 
-export const addComment = async (taskId, userId, content) => {
-  const response = await axiosInstance.post(
-    getCommentsEndpoint(taskId),
-    { content },
-    {
-      params: { userId },
-    }
-  );
+export const addComment = async (taskId, content) => {
+  const response = await axiosInstance.post(getCommentsEndpoint(taskId), { content });
   return response.data;
 };

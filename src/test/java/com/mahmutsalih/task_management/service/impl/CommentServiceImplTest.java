@@ -21,13 +21,18 @@ import com.mahmutsalih.task_management.repository.CommentRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.UserRepository;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
@@ -44,6 +49,11 @@ class CommentServiceImplTest {
     @InjectMocks
     private CommentServiceImpl commentService;
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void addComment_shouldCreateComment() {
         Task task = task();
@@ -52,8 +62,9 @@ class CommentServiceImplTest {
                 .content("Looks good")
                 .build();
 
+        authenticate(user.getEmail());
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
-        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> {
             Comment comment = invocation.getArgument(0);
             comment.setId(4L);
@@ -61,7 +72,7 @@ class CommentServiceImplTest {
             return comment;
         });
 
-        CommentResponse response = commentService.addComment(3L, 2L, request);
+        CommentResponse response = commentService.addComment(3L, request);
 
         assertThat(response.getId()).isEqualTo(4L);
         assertThat(response.getContent()).isEqualTo("Looks good");
@@ -83,25 +94,40 @@ class CommentServiceImplTest {
 
         when(taskRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> commentService.addComment(99L, 2L, request))
+        assertThatThrownBy(() -> commentService.addComment(99L, request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Task not found with id: 99");
         verifyNoInteractions(userRepository, commentRepository);
     }
 
     @Test
-    void addComment_whenUserNotFound_shouldThrowResourceNotFoundException() {
+    void addComment_whenAuthenticatedUserNotFound_shouldThrowAccessDeniedException() {
+        CreateCommentRequest request = CreateCommentRequest.builder()
+                .content("Looks good")
+                .build();
+
+        authenticate("unknown@example.com");
+        when(taskRepository.findById(3L)).thenReturn(Optional.of(task()));
+        when(userRepository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> commentService.addComment(3L, request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You do not have permission to access this resource");
+        verifyNoInteractions(commentRepository);
+    }
+
+    @Test
+    void addComment_whenUnauthenticated_shouldThrowAccessDeniedException() {
         CreateCommentRequest request = CreateCommentRequest.builder()
                 .content("Looks good")
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task()));
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> commentService.addComment(3L, 99L, request))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found with id: 99");
-        verifyNoInteractions(commentRepository);
+        assertThatThrownBy(() -> commentService.addComment(3L, request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You do not have permission to access this resource");
+        verifyNoInteractions(userRepository, commentRepository);
     }
 
     @Test
@@ -146,5 +172,11 @@ class CommentServiceImplTest {
                 .lastName("Kelkit")
                 .email("mahmut@example.com")
                 .build();
+    }
+
+    private void authenticate(String email) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList())
+        );
     }
 }

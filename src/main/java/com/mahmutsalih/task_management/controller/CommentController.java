@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,10 +25,9 @@ public class CommentController {
     @PostMapping
     public ResponseEntity<CommentResponse> addCommentToTask(
             @PathVariable Long taskId,
-            @RequestParam Long userId,
             @Valid @RequestBody CreateCommentRequest request
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(commentService.addComment(taskId, userId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(commentService.addComment(taskId, request));
     }
 
     @GetMapping
