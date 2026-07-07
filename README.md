@@ -273,7 +273,6 @@ Attachment metadata has the shape:
 
 ### Users
 
-- `POST /api/users` - Create a user with an assigned role (`ADMIN` only).
 - `GET /api/users?page=0&size=10&sort=id,desc` - List users with pagination and sorting (`ADMIN` only).
 - `GET /api/users/options` - List user options for authenticated `USER` and `ADMIN` accounts.
 - `GET /api/users/{id}` - Get a user by id (`ADMIN` only).

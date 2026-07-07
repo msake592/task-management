@@ -23,19 +23,6 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public UserResponse create(UserRequest request) {
-        User user = User.builder()
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(findRole(request.getRoleId()))
-                .build();
-
-        return toResponse(userRepository.save(user));
-    }
-
-    @Override
     public Page<UserResponse> getAll(Pageable pageable) {
         return userRepository.findAll(pageable)
                 .map(this::toResponse);

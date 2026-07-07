@@ -37,30 +37,38 @@ class UserServiceImplTest {
     private UserServiceImpl userService;
 
     @Test
-    void create_shouldCreateUser() {
-        Role role = Role.builder().id(1L).name("USER").build();
-        UserRequest request = UserRequest.builder()
+    void update_shouldUpdateUserAndRole() {
+        Role adminRole = Role.builder().id(2L).name("ADMIN").build();
+        User user = User.builder()
+                .id(10L)
                 .firstName("Mahmut")
                 .lastName("Kelkit")
                 .email("mahmut@example.com")
-                .password("password")
-                .roleId(1L)
+                .password("old-password")
+                .role(Role.builder().id(1L).name("USER").build())
+                .build();
+        UserRequest request = UserRequest.builder()
+                .firstName("Mahmut")
+                .lastName("Admin")
+                .email("admin@example.com")
+                .password("new-password")
+                .roleId(2L)
                 .build();
 
-        when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
-        when(passwordEncoder.encode("password")).thenReturn("encoded-password");
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(adminRole));
+        when(passwordEncoder.encode("new-password")).thenReturn("encoded-password");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            user.setId(10L);
-            return user;
+            return invocation.getArgument(0);
         });
 
-        UserResponse response = userService.create(request);
+        UserResponse response = userService.update(10L, request);
 
         assertThat(response.getId()).isEqualTo(10L);
-        assertThat(response.getEmail()).isEqualTo("mahmut@example.com");
-        assertThat(response.getRoleId()).isEqualTo(1L);
-        verify(passwordEncoder).encode("password");
+        assertThat(response.getEmail()).isEqualTo("admin@example.com");
+        assertThat(response.getRoleId()).isEqualTo(2L);
+        assertThat(response.getRoleName()).isEqualTo("ADMIN");
+        verify(passwordEncoder).encode("new-password");
     }
 
     @Test

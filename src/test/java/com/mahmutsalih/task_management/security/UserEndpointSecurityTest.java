@@ -3,8 +3,9 @@ package com.mahmutsalih.task_management.security;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -64,7 +65,16 @@ class UserEndpointSecurityTest {
     }
 
     @Test
-    void createUser_withAdminRole_shouldReturnCreated() throws Exception {
+    void createUser_withAdminRole_shouldReturnMethodNotAllowed() throws Exception {
+        mockMvc.perform(post("/api/users")
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(USER_JSON))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void updateUser_withAdminRole_shouldReturnOk() throws Exception {
         UserResponse response = UserResponse.builder()
                 .id(10L)
                 .firstName("Managed")
@@ -73,13 +83,13 @@ class UserEndpointSecurityTest {
                 .roleId(2L)
                 .roleName("ADMIN")
                 .build();
-        when(userService.create(any(UserRequest.class))).thenReturn(response);
+        when(userService.update(org.mockito.ArgumentMatchers.eq(10L), any(UserRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(put("/api/users/10")
                         .with(user("admin@example.com").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(USER_JSON))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roleName").value("ADMIN"));
     }
 

@@ -9,13 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,17 +27,6 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
-
-    @PostMapping
-    public ResponseEntity<UserResponse> create(
-            @Valid @RequestBody UserRequest request,
-            Authentication authentication
-    ) {
-        UserResponse user = userService.create(request);
-        logger.info("User created by admin. adminUsername={}, targetUserId={}",
-                authentication.getName(), user.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
-    }
 
     @GetMapping
     public ResponseEntity<Page<UserResponse>> getAll(Pageable pageable, Authentication authentication) {
