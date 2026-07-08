@@ -3,12 +3,15 @@ package com.mahmutsalih.task_management.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mahmutsalih.task_management.dto.request.ProjectRequest;
+import com.mahmutsalih.task_management.dto.response.ProjectMemberResponse;
 import com.mahmutsalih.task_management.dto.response.ProjectResponse;
 import com.mahmutsalih.task_management.entity.Project;
+import com.mahmutsalih.task_management.entity.ProjectMember;
 import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.ProjectStatus;
 import com.mahmutsalih.task_management.enums.ProjectRole;
@@ -208,5 +211,39 @@ class ProjectServiceImplTest {
         assertThat(projectService.isMember(1L, 2L)).isTrue();
 
         verify(projectMemberRepository).existsByProjectIdAndUserId(1L, 2L);
+    }
+
+    @Test
+    void getMembers_shouldFetchMembersWithUsers() {
+        User currentUser = User.builder().id(2L).email("user@test.com").build();
+        User memberUser = User.builder()
+                .id(3L)
+                .firstName("Mahmut")
+                .lastName("Kelkit")
+                .email("mahmut@example.com")
+                .build();
+        Project project = Project.builder().id(1L).name("Task Management").build();
+        ProjectMember member = ProjectMember.builder()
+                .project(project)
+                .user(memberUser)
+                .role(ProjectRole.MEMBER)
+                .joinedAt(LocalDateTime.of(2026, 1, 1, 12, 0))
+                .build();
+
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(currentUserService.isAdmin()).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(currentUser);
+        when(projectMemberRepository.existsByProjectIdAndUserId(1L, 2L)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdWithUser(1L)).thenReturn(List.of(member));
+
+        List<ProjectMemberResponse> response = projectService.getMembers(1L);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).getUserId()).isEqualTo(3L);
+        assertThat(response.get(0).getName()).isEqualTo("Mahmut Kelkit");
+        assertThat(response.get(0).getEmail()).isEqualTo("mahmut@example.com");
+        assertThat(response.get(0).getRole()).isEqualTo(ProjectRole.MEMBER);
+        verify(projectMemberRepository).findByProjectIdWithUser(1L);
+        verify(projectMemberRepository, never()).findByProjectId(1L);
     }
 }

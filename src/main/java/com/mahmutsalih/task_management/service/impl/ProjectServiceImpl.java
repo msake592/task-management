@@ -137,7 +137,7 @@ public class ProjectServiceImpl implements ProjectService {
     public List<ProjectMemberResponse> getMembers(Long projectId) {
         Project project = findProject(projectId);
         validateMemberReadAccess(project);
-        return projectMemberRepository.findByProjectId(projectId).stream()
+        return projectMemberRepository.findByProjectIdWithUser(projectId).stream()
                 .map(this::toMemberResponse)
                 .toList();
     }
