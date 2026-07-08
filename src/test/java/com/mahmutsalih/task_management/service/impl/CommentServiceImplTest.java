@@ -18,21 +18,16 @@ import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.CommentRepository;
-import com.mahmutsalih.task_management.repository.TaskRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.security.CurrentUserService;
+import com.mahmutsalih.task_management.service.TaskService;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
@@ -41,18 +36,13 @@ class CommentServiceImplTest {
     private CommentRepository commentRepository;
 
     @Mock
-    private TaskRepository taskRepository;
+    private TaskService taskService;
 
     @Mock
-    private UserRepository userRepository;
+    private CurrentUserService currentUserService;
 
     @InjectMocks
     private CommentServiceImpl commentService;
-
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
 
     @Test
     void addComment_shouldCreateComment() {
@@ -62,9 +52,8 @@ class CommentServiceImplTest {
                 .content("Looks good")
                 .build();
 
-        authenticate(user.getEmail());
-        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
-        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(taskService.getEntityById(3L)).thenReturn(task);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
         when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> {
             Comment comment = invocation.getArgument(0);
             comment.setId(4L);
@@ -92,12 +81,13 @@ class CommentServiceImplTest {
                 .content("Looks good")
                 .build();
 
-        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
+        when(taskService.getEntityById(99L))
+                .thenThrow(new ResourceNotFoundException("Task not found with id: 99"));
 
         assertThatThrownBy(() -> commentService.addComment(99L, request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Task not found with id: 99");
-        verifyNoInteractions(userRepository, commentRepository);
+        verifyNoInteractions(currentUserService, commentRepository);
     }
 
     @Test
@@ -106,9 +96,9 @@ class CommentServiceImplTest {
                 .content("Looks good")
                 .build();
 
-        authenticate("unknown@example.com");
-        when(taskRepository.findById(3L)).thenReturn(Optional.of(task()));
-        when(userRepository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
+        when(taskService.getEntityById(3L)).thenReturn(task());
+        when(currentUserService.getCurrentUser())
+                .thenThrow(new AccessDeniedException("You do not have permission to access this resource"));
 
         assertThatThrownBy(() -> commentService.addComment(3L, request))
                 .isInstanceOf(AccessDeniedException.class)
@@ -122,12 +112,14 @@ class CommentServiceImplTest {
                 .content("Looks good")
                 .build();
 
-        when(taskRepository.findById(3L)).thenReturn(Optional.of(task()));
+        when(taskService.getEntityById(3L)).thenReturn(task());
+        when(currentUserService.getCurrentUser())
+                .thenThrow(new AccessDeniedException("You do not have permission to access this resource"));
 
         assertThatThrownBy(() -> commentService.addComment(3L, request))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("You do not have permission to access this resource");
-        verifyNoInteractions(userRepository, commentRepository);
+        verifyNoInteractions(commentRepository);
     }
 
     @Test
@@ -142,7 +134,7 @@ class CommentServiceImplTest {
                 .createdAt(LocalDateTime.of(2026, 1, 1, 12, 0))
                 .build();
 
-        when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
+        when(taskService.getEntityById(3L)).thenReturn(task);
         when(commentRepository.findByTaskIdOrderByCreatedAtDesc(3L)).thenReturn(List.of(comment));
 
         List<CommentResponse> responses = commentService.getCommentsByTask(3L);
@@ -174,9 +166,4 @@ class CommentServiceImplTest {
                 .build();
     }
 
-    private void authenticate(String email) {
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList())
-        );
-    }
 }

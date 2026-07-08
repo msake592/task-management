@@ -13,9 +13,9 @@ import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
 import com.mahmutsalih.task_management.repository.ProjectRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.ProjectService;
+import com.mahmutsalih.task_management.service.UserService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final CurrentUserService currentUserService;
 
     @Override
@@ -81,6 +81,16 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
+    public Project getEntityById(Long id) {
+        return findProject(id);
+    }
+
+    @Override
+    public boolean isMember(Long projectId, Long userId) {
+        return projectMemberRepository.existsByProjectIdAndUserId(projectId, userId);
+    }
+
+    @Override
     public ProjectResponse update(Long id, ProjectRequest request) {
         validateDates(request.getStartDate(), request.getEndDate());
 
@@ -109,9 +119,7 @@ public class ProjectServiceImpl implements ProjectService {
     public ProjectMemberResponse addMember(Long projectId, AddProjectMemberRequest request) {
         Project project = findProject(projectId);
         validateMemberManagementAccess(project);
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with id: " + request.getUserId()));
+        User user = userService.getEntityById(request.getUserId());
         if (projectMemberRepository.existsByProjectIdAndUserId(projectId, user.getId())) {
             throw new BadRequestException("User is already a member of this project");
         }

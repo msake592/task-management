@@ -12,13 +12,12 @@ import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
-import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
-import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
 import com.mahmutsalih.task_management.repository.TaskRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
+import com.mahmutsalih.task_management.service.ProjectService;
 import com.mahmutsalih.task_management.service.TaskService;
+import com.mahmutsalih.task_management.service.UserService;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.JoinType;
 import java.time.LocalDate;
@@ -58,9 +57,8 @@ public class TaskServiceImpl implements TaskService {
     );
 
     private final TaskRepository taskRepository;
-    private final ProjectRepository projectRepository;
-    private final UserRepository userRepository;
-    private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectService projectService;
+    private final UserService userService;
     private final TaskAssignmentRepository taskAssignmentRepository;
     private final CurrentUserService currentUserService;
 
@@ -98,6 +96,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public TaskResponse getById(Long id) {
         Task task = findTask(id);
         validateTaskReadAccess(task);
@@ -105,6 +104,12 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public Task getEntityById(Long id) {
+        return findTask(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<TaskResponse> getAll(
             int page,
             int size,
@@ -223,13 +228,11 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private Project findProject(Long id) {
-        return projectRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + id));
+        return projectService.getEntityById(id);
     }
 
     private User findUser(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+        return userService.getEntityById(id);
     }
 
     private User findUserOrNull(Long id) {
@@ -273,7 +276,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void validateProjectMember(Long projectId, User user) {
-        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, user.getId())) {
+        if (!projectService.isMember(projectId, user.getId())) {
             throw new BadRequestException("User is not a member of this project");
         }
     }
@@ -427,7 +430,6 @@ public class TaskServiceImpl implements TaskService {
         );
     }
 
-    @Transactional(readOnly = true)
     private TaskResponse toResponse(Task task) {
         List<User> assignees = task.getId() == null
                 ? List.of()

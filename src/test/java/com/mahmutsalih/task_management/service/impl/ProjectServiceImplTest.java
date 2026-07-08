@@ -13,9 +13,9 @@ import com.mahmutsalih.task_management.entity.User;
 import com.mahmutsalih.task_management.enums.ProjectStatus;
 import com.mahmutsalih.task_management.enums.ProjectRole;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
-import com.mahmutsalih.task_management.repository.ProjectRepository;
 import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.repository.ProjectRepository;
+import com.mahmutsalih.task_management.service.UserService;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -41,7 +41,7 @@ class ProjectServiceImplTest {
     private ProjectMemberRepository projectMemberRepository;
 
     @Mock
-    private UserRepository userRepository;
+    private UserService userService;
 
     @Mock
     private CurrentUserService currentUserService;
@@ -199,5 +199,14 @@ class ProjectServiceImplTest {
         ProjectResponse response = projectService.getById(1L);
 
         assertThat(response.getDeadlineStatus()).isEqualTo(ProjectStatus.ACTIVE);
+    }
+
+    @Test
+    void isMember_shouldDelegateToProjectMemberRepository() {
+        when(projectMemberRepository.existsByProjectIdAndUserId(1L, 2L)).thenReturn(true);
+
+        assertThat(projectService.isMember(1L, 2L)).isTrue();
+
+        verify(projectMemberRepository).existsByProjectIdAndUserId(1L, 2L);
     }
 }

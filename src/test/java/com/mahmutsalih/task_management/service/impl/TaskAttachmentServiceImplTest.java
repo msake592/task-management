@@ -17,9 +17,9 @@ import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
 import com.mahmutsalih.task_management.repository.TaskAttachmentRepository;
-import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.FileStorageService;
+import com.mahmutsalih.task_management.service.TaskService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +34,7 @@ import org.springframework.mock.web.MockMultipartFile;
 class TaskAttachmentServiceImplTest {
 
     @Mock
-    private TaskRepository taskRepository;
+    private TaskService taskService;
 
     @Mock
     private TaskAttachmentRepository taskAttachmentRepository;
@@ -95,7 +95,8 @@ class TaskAttachmentServiceImplTest {
                 "application/pdf",
                 "content".getBytes()
         );
-        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
+        when(taskService.getEntityById(99L))
+                .thenThrow(new ResourceNotFoundException("Task not found with id: 99"));
 
         assertThatThrownBy(() -> taskAttachmentService.upload(99L, file))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -182,7 +183,7 @@ class TaskAttachmentServiceImplTest {
     }
 
     private void allowAccess(Task task, User user) {
-        when(taskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+        when(taskService.getEntityById(task.getId())).thenReturn(task);
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(currentUserService.isAdmin(user)).thenReturn(true);
     }

@@ -42,6 +42,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getEntityById(Long id) {
+        return findUser(id);
+    }
+
+    @Override
     public UserResponse update(Long id, UserRequest request) {
         User user = findUser(id);
         Role newRole = findRole(request.getRoleId());

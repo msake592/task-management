@@ -11,10 +11,10 @@ import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
 import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
 import com.mahmutsalih.task_management.repository.TaskAttachmentRepository;
-import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import com.mahmutsalih.task_management.service.FileStorageService;
 import com.mahmutsalih.task_management.service.TaskAttachmentService;
+import com.mahmutsalih.task_management.service.TaskService;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Set;
@@ -38,11 +38,11 @@ public class TaskAttachmentServiceImpl implements TaskAttachmentService {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
 
-    private final TaskRepository taskRepository;
     private final TaskAttachmentRepository taskAttachmentRepository;
     private final TaskAssignmentRepository taskAssignmentRepository;
     private final FileStorageService fileStorageService;
     private final CurrentUserService currentUserService;
+    private final TaskService taskService;
 
     @Override
     @Transactional
@@ -107,8 +107,7 @@ public class TaskAttachmentServiceImpl implements TaskAttachmentService {
     }
 
     private Task findTask(Long taskId) {
-        return taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + taskId));
+        return taskService.getEntityById(taskId);
     }
 
     private TaskAttachment findAttachment(Long taskId, Long attachmentId) {

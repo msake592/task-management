@@ -21,11 +21,10 @@ import com.mahmutsalih.task_management.enums.TaskPriority;
 import com.mahmutsalih.task_management.enums.TaskStatus;
 import com.mahmutsalih.task_management.exception.BadRequestException;
 import com.mahmutsalih.task_management.exception.ResourceNotFoundException;
-import com.mahmutsalih.task_management.repository.ProjectRepository;
-import com.mahmutsalih.task_management.repository.ProjectMemberRepository;
+import com.mahmutsalih.task_management.service.ProjectService;
 import com.mahmutsalih.task_management.repository.TaskRepository;
 import com.mahmutsalih.task_management.repository.TaskAssignmentRepository;
-import com.mahmutsalih.task_management.repository.UserRepository;
+import com.mahmutsalih.task_management.service.UserService;
 import com.mahmutsalih.task_management.security.CurrentUserService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,13 +56,10 @@ class TaskServiceImplTest {
     private TaskRepository taskRepository;
 
     @Mock
-    private ProjectRepository projectRepository;
+    private ProjectService projectService;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private ProjectMemberRepository projectMemberRepository;
+    private UserService userService;
 
     @Mock
     private TaskAssignmentRepository taskAssignmentRepository;
@@ -77,7 +73,7 @@ class TaskServiceImplTest {
     @BeforeEach
     void setUpAssignmentRepositories() {
         org.mockito.Mockito.lenient()
-                .when(projectMemberRepository.existsByProjectIdAndUserId(anyLong(), anyLong()))
+                .when(projectService.isMember(anyLong(), anyLong()))
                 .thenReturn(true);
         org.mockito.Mockito.lenient()
                 .when(taskAssignmentRepository.findByTaskId(anyLong()))
@@ -99,10 +95,10 @@ class TaskServiceImplTest {
                 .assignedUserId(2L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(admin);
         when(currentUserService.isAdmin(admin)).thenReturn(true);
-        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(userService.getEntityById(2L)).thenReturn(user);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
             Task task = invocation.getArgument(0);
             task.setId(3L);
@@ -132,7 +128,7 @@ class TaskServiceImplTest {
                 .projectId(1L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(admin);
         when(currentUserService.isAdmin(admin)).thenReturn(true);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
@@ -147,7 +143,7 @@ class TaskServiceImplTest {
         assertThat(response.getId()).isEqualTo(3L);
         assertThat(response.getAssignedUserId()).isNull();
         assertThat(response.getAssignedUsername()).isNull();
-        verify(userRepository, never()).findById(anyLong());
+        verify(userService, never()).getEntityById(anyLong());
     }
 
     @Test
@@ -161,11 +157,11 @@ class TaskServiceImplTest {
                 .assigneeIds(List.of(2L, 3L))
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(adminUser());
         when(currentUserService.isAdmin(any(User.class))).thenReturn(true);
-        when(userRepository.findById(2L)).thenReturn(Optional.of(firstUser));
-        when(userRepository.findById(3L)).thenReturn(Optional.of(secondUser));
+        when(userService.getEntityById(2L)).thenReturn(firstUser);
+        when(userService.getEntityById(3L)).thenReturn(secondUser);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
             Task task = invocation.getArgument(0);
             task.setId(3L);
@@ -188,11 +184,11 @@ class TaskServiceImplTest {
                 .assigneeIds(List.of(2L))
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(adminUser());
         when(currentUserService.isAdmin(any(User.class))).thenReturn(true);
-        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
-        when(projectMemberRepository.existsByProjectIdAndUserId(1L, 2L)).thenReturn(false);
+        when(userService.getEntityById(2L)).thenReturn(user);
+        when(projectService.isMember(1L, 2L)).thenReturn(false);
 
         assertThatThrownBy(() -> taskService.create(request))
                 .isInstanceOf(BadRequestException.class)
@@ -210,7 +206,7 @@ class TaskServiceImplTest {
                 .projectId(1L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(currentUser);
         when(currentUserService.isAdmin(currentUser)).thenReturn(false);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
@@ -224,7 +220,7 @@ class TaskServiceImplTest {
 
         assertThat(response.getAssignedUserId()).isEqualTo(2L);
         assertThat(response.getAssignedUsername()).isEqualTo("mahmut@example.com");
-        verify(userRepository, never()).findById(anyLong());
+        verify(userService, never()).getEntityById(anyLong());
     }
 
     @Test
@@ -238,7 +234,7 @@ class TaskServiceImplTest {
                 .assignedUserId(2L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(currentUser);
         when(currentUserService.isAdmin(currentUser)).thenReturn(false);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
@@ -264,7 +260,7 @@ class TaskServiceImplTest {
                 .assignedUserId(99L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(currentUser);
         when(currentUserService.isAdmin(currentUser)).thenReturn(false);
 
@@ -284,10 +280,10 @@ class TaskServiceImplTest {
                 .assignedUserId(99L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(currentUserService.getCurrentUser()).thenReturn(admin);
         when(currentUserService.isAdmin(admin)).thenReturn(true);
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userService.getEntityById(99L)).thenThrow(new ResourceNotFoundException("User not found with id: " + 99L));
 
         assertThatThrownBy(() -> taskService.create(request))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -303,7 +299,7 @@ class TaskServiceImplTest {
                 .projectId(1L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         doThrow(new AccessDeniedException("You do not have permission to access this resource"))
                 .when(currentUserService).validateProjectAccess(project);
 
@@ -530,7 +526,7 @@ class TaskServiceImplTest {
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
         when(currentUserService.getCurrentUser()).thenReturn(admin);
         when(currentUserService.isAdmin(admin)).thenReturn(true);
-        when(projectRepository.findById(2L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(2L)).thenReturn(project);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskResponse response = taskService.update(3L, request);
@@ -568,7 +564,7 @@ class TaskServiceImplTest {
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
         when(currentUserService.getCurrentUser()).thenReturn(currentUser);
         when(currentUserService.isAdmin(currentUser)).thenReturn(false);
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
 
         assertThatThrownBy(() -> taskService.update(3L, request))
                 .isInstanceOf(AccessDeniedException.class)
@@ -602,7 +598,7 @@ class TaskServiceImplTest {
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
         when(currentUserService.getCurrentUser()).thenReturn(currentUser);
         when(currentUserService.isAdmin(currentUser)).thenReturn(false);
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskResponse response = taskService.update(3L, request);
@@ -637,8 +633,8 @@ class TaskServiceImplTest {
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
         when(currentUserService.getCurrentUser()).thenReturn(admin);
         when(currentUserService.isAdmin(admin)).thenReturn(true);
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(userRepository.findById(4L)).thenReturn(Optional.of(assignee));
+        when(projectService.getEntityById(1L)).thenReturn(project);
+        when(userService.getEntityById(4L)).thenReturn(assignee);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskResponse response = taskService.update(3L, request);
@@ -670,7 +666,7 @@ class TaskServiceImplTest {
                 .projectId(1L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
 
         assertThatThrownBy(() -> taskService.create(request))
                 .isInstanceOf(BadRequestException.class)
@@ -692,7 +688,7 @@ class TaskServiceImplTest {
                 .projectId(1L)
                 .build();
 
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(projectService.getEntityById(1L)).thenReturn(project);
 
         assertThatThrownBy(() -> taskService.create(request))
                 .isInstanceOf(BadRequestException.class)
@@ -717,7 +713,7 @@ class TaskServiceImplTest {
                 .build();
 
         when(taskRepository.findById(3L)).thenReturn(Optional.of(task));
-        when(projectRepository.findById(2L)).thenReturn(Optional.of(newProject));
+        when(projectService.getEntityById(2L)).thenReturn(newProject);
         when(currentUserService.getCurrentUser()).thenReturn(adminUser());
 
         assertThatThrownBy(() -> taskService.update(3L, request))
